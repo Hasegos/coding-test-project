@@ -7,9 +7,12 @@ import io.dev.coding_test.model.Memo;
 import io.dev.coding_test.model.MemoTodo;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.service.MemoSummaryService;
+import io.dev.coding_test.support.TestLoginContext;
+import io.dev.coding_test.support.TestMembers;
 import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +38,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MemoQueryCountTest {
 
     @Autowired
+    private TestMembers testMembers;
+
+    @Autowired
+    private TestLoginContext testLoginContext;
+
+    /** 로그인한 회원 (테스트마다 새로 가입) */
+    private Long memberId;
+
+    @Autowired
     private MemoService memoService;
 
     @Autowired
@@ -51,8 +63,9 @@ class MemoQueryCountTest {
 
     @BeforeEach
     void setUp() {
+        memberId = testMembers.login("tester").getMemberId();
         for (int i = 0; i < 12; i++) {
-            MemoResponse saved = memoService.create(new MemoRequest("회의 " + i, "본문 ".repeat(1_000)));
+            MemoResponse saved = memoService.create(memberId, new MemoRequest("회의 " + i, "본문 ".repeat(1_000)));
             Memo memo = memoRepository.findById(saved.memoId()).orElseThrow();
             for (int t = 0; t < 3; t++) {
                 MemoTodo todo = new MemoTodo();
@@ -69,9 +82,14 @@ class MemoQueryCountTest {
         statistics.clear();
     }
 
+    @AfterEach
+    void resetLogin() {
+        testLoginContext.reset();
+    }
+
     @Test
     void 목록은_projection_1쿼리와_개수_1쿼리로_엔티티를_로딩하지_않는다() {
-        Page<MemoListItem> page = memoService.getMemos(null, 0, 12);
+        Page<MemoListItem> page = memoService.getMemos(memberId, null, 0, 12);
 
         assertThat(page.getContent()).hasSize(12);
         assertThat(page.getContent().getFirst().todoCount()).isEqualTo(3);
@@ -80,7 +98,7 @@ class MemoQueryCountTest {
 
     @Test
     void 검색도_projection_1쿼리와_개수_1쿼리로_처리한다() {
-        Page<MemoListItem> page = memoService.getMemos("회의", 0, 12);
+        Page<MemoListItem> page = memoService.getMemos(memberId, "회의", 0, 12);
 
         assertThat(page.getTotalElements()).isEqualTo(12);
         assertQueries(2, 0);
@@ -88,7 +106,7 @@ class MemoQueryCountTest {
 
     @Test
     void 상세는_할_일과_함께_1쿼리로_조회한다() {
-        MemoResponse memo = memoService.getMemo(memoIds.getFirst());
+        MemoResponse memo = memoService.getMemo(memberId, memoIds.getFirst());
 
         assertThat(memo.summary().todos()).hasSize(3);
         assertQueries(1, 4);
@@ -96,14 +114,14 @@ class MemoQueryCountTest {
 
     @Test
     void 요약_상태_폴링은_상태_컬럼만_1쿼리로_조회한다() {
-        memoSummaryService.getSummaryStatus(memoIds.getFirst());
+        memoSummaryService.getSummaryStatus(memberId, memoIds.getFirst());
 
         assertQueries(1, 0);
     }
 
     @Test
     void 요약_결과_조회는_할_일과_함께_1쿼리로_조회한다() {
-        assertThat(memoSummaryService.getSummary(memoIds.getFirst()).todos()).hasSize(3);
+        assertThat(memoSummaryService.getSummary(memberId, memoIds.getFirst()).todos()).hasSize(3);
 
         assertQueries(1, 4);
     }
