@@ -1,6 +1,10 @@
 server:
   port: 8083
   shutdown: graceful
+  compression: # HTML·CSS·JS·JSON 응답 gzip 압축 (1KB 이상)
+    enabled: true
+    mime-types: text/html,text/css,application/javascript,text/javascript,application/json,image/svg+xml
+    min-response-size: 1KB
   servlet:
     session:
       tracking-modes: cookie # flash 메시지용 세션 ID가 리다이렉트 URL(;jsessionid=)에 노출되지 않도록 쿠키만 사용
@@ -28,6 +32,18 @@ spring:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 3000
+
+  web:
+    resources:
+      chain:
+        strategy:
+          content: # 파일 내용 해시를 URL에 붙여(예: common-3f2a….css) 변경 시에만 새로 받도록 함
+            enabled: true
+            paths: /**
+      cache:
+        cachecontrol: # 해시가 붙은 정적 리소스는 1년 캐시
+          max-age: 365d
+          cache-public: true
 
   jpa:
     open-in-view: false
