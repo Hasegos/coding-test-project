@@ -35,3 +35,16 @@ CREATE TABLE IF NOT EXISTS memo_todo (
 );
 
 CREATE INDEX IF NOT EXISTS idx_memo_todo_memo_id ON memo_todo (memo_id, sort_order);
+
+-- 로컬 LLM 서버 접속 설정 (LLM 설정 화면에서 저장, 단일 행)
+CREATE TABLE IF NOT EXISTS llm_setting (
+    setting_id  BIGINT          PRIMARY KEY,                    -- 항상 1
+    provider    VARCHAR(20)     NOT NULL,                       -- OLLAMA | LMSTUDIO
+    host        VARCHAR(15)     NOT NULL,                       -- 로컬 전용 IPv4 (사설망 · Tailscale 대역)
+    port        INTEGER         NOT NULL,
+    model       VARCHAR(100)    NOT NULL,
+    api_key     VARCHAR(200),
+    updated_at  TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT ck_llm_setting_provider CHECK (provider IN ('OLLAMA', 'LMSTUDIO')),
+    CONSTRAINT ck_llm_setting_port CHECK (port BETWEEN 1 AND 65535)
+);
