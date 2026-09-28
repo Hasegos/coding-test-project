@@ -8,11 +8,16 @@ import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.model.enums.LlmProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,9 +32,9 @@ class OllamaLlmClientTest {
 
     private static final String BASE_URL = "http://ollama.test";
 
-    private final LlmProperties properties = new LlmProperties(0.2, null, null, 1, 10);
+    private final LlmProperties properties = new LlmProperties(0.2, null, null, null, null, 1, 10);
     private final LlmConnection connection =
-            new LlmConnection(LlmProvider.OLLAMA, "127.0.0.1", 11434, "qwen2.5:7b", null);
+            new LlmConnection(LlmProvider.OLLAMA, "192.168.0.10", 11434, "qwen2.5:7b", null);
 
     private MockRestServiceServer server;
     private OllamaLlmClient client;
@@ -38,7 +43,7 @@ class OllamaLlmClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new OllamaLlmClient(builder.build(), connection, properties,
+        client = new OllamaLlmClient(builder.build(), builder.build(), connection, properties,
                 new SummaryResultParser(JsonMapper.builder().build()));
     }
 
@@ -76,7 +81,7 @@ class OllamaLlmClientTest {
     }
 
     @Test
-    void 서버_오류_응답은_상태코드와_본문을_담은_LlmException으로_변환한다() {
+    void 채팅_404는_모델을_찾을_수_없다는_메시지로_변환한다() {
         server.expect(requestTo(BASE_URL + "/api/chat"))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,8 +89,7 @@ class OllamaLlmClientTest {
 
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
                 .isInstanceOf(LlmException.class)
-                .hasMessageContaining("HTTP 404")
-                .hasMessageContaining("not found");
+                .hasMessage("LLM 서버에서 모델 'qwen2.5:7b'을(를) 찾을 수 없어요. LLM 설정에서 모델을 다시 선택해주세요.");
     }
 
     @Test
@@ -99,48 +103,80 @@ class OllamaLlmClientTest {
     }
 
     @Test
-    void 모델_목록을_조회하고_중복_제거_후_정렬한다() {
+    void 모델_목록을_조회하고_중복_제거_후_정렬하며_임베딩_모델은_뺀다() {
         server.expect(requestTo(BASE_URL + "/api/tags"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
-                        {"models": [{"name": "qwen2.5:7b", "size": 4683087332}, {"name": "llama3.2:3b"}, {"name": "qwen2.5:7b"}]}
+                        {"models": [{"name": "qwen2.5:7b", "size": 4683087332}, {"name": "llama3.2:3b"},
+                                    {"name": "qwen2.5:7b"}, {"name": "nomic-embed-text:latest"}, {"name": "bge-m3:latest"}]}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(client.listModels()).containsExactly("llama3.2:3b", "qwen2.5:7b");
+        assertThat(client.listModels()).hasValue(List.of("llama3.2:3b", "qwen2.5:7b"));
         server.verify();
     }
 
     @Test
-    void 모델_목록_조회_실패는_LlmException으로_변환한다() {
+    void 모델_목록_API가_404면_미지원으로_본다() {
         server.expect(requestTo(BASE_URL + "/api/tags"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("unauthorized"));
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.listModels()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "401 | LLM 서버 인증에 실패했어요. API Key를 확인해주세요.",
+            "403 | LLM 서버 인증에 실패했어요. API Key를 확인해주세요.",
+            "429 | LLM 서버 요청 한도를 초과했어요. 잠시 후 다시 시도해주세요.",
+            "302 | LLM 서버가 다른 주소로 리다이렉트했어요. IP·포트를 확인해주세요.",
+            "500 | LLM 서버가 500 응답을 반환했어요.",
+    })
+    void 상태_코드를_사용자용_메시지로_변환한다(int status, String message) {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)).body("unauthorized"));
 
         assertThatThrownBy(() -> client.listModels())
                 .isInstanceOf(LlmException.class)
-                .hasMessageContaining("HTTP 401");
+                .hasMessage(message);
     }
 
     @Test
-    void JSON이_아닌_오류_응답_본문은_노출하지_않는다() {
-        server.expect(requestTo(BASE_URL + "/api/tags"))
-                .andRespond(withStatus(HttpStatus.NOT_FOUND)
-                        .contentType(MediaType.TEXT_HTML)
-                        .body("<html><body>Internal Admin Panel v1.2 - secret-token=abc</body></html>"));
-
-        assertThatThrownBy(() -> client.listModels())
-                .isInstanceOf(LlmException.class)
-                .hasMessage("LLM 서버 오류 (HTTP 404)");
-    }
-
-    @Test
-    void JSON_오류는_error_message_필드만_보여준다() {
+    void 오류_응답_본문은_JSON이어도_노출하지_않는다() {
         server.expect(requestTo(BASE_URL + "/api/chat"))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"error\": {\"message\": \"context length exceeded\", \"internal\": \"x\"}}"));
+                        .body("{\"error\": {\"message\": \"Internal Admin Panel v1.2 - secret-token=abc\"}}"));
 
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
                 .isInstanceOf(LlmException.class)
-                .hasMessage("LLM 서버 오류 (HTTP 400): context length exceeded");
+                .hasMessage("LLM 서버가 요청을 거부했어요. (400) 모델이 로드되어 있는지, 모델명이 맞는지 확인해주세요.")
+                .hasMessageNotContaining("secret-token");
+    }
+
+    @Test
+    void JSON이_아닌_성공_응답은_응답_형식_오류로_변환한다() {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withSuccess("<html><body>Router admin</body></html>", MediaType.TEXT_HTML));
+
+        assertThatThrownBy(() -> client.listModels())
+                .isInstanceOf(LlmException.class)
+                .hasMessageStartingWith("Ollama 응답 형식이 올바르지 않아요.")
+                .hasMessageNotContaining("Router admin");
+    }
+
+    @Test
+    void 최대_크기를_넘는_응답은_읽기를_중단한다() {
+        LlmProperties small = new LlmProperties(0.2, null, null, null, DataSize.ofKilobytes(1), 1, 10);
+        RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
+        MockRestServiceServer smallServer = MockRestServiceServer.bindTo(builder).build();
+        OllamaLlmClient smallClient = new OllamaLlmClient(builder.build(), builder.build(), connection, small,
+                new SummaryResultParser(JsonMapper.builder().build()));
+        smallServer.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withSuccess("{\"models\": [{\"name\": \"" + "a".repeat(2048) + "\"}]}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(smallClient::listModels)
+                .isInstanceOf(LlmException.class)
+                .hasMessage("LLM 응답이 너무 커요. (최대 1KB)");
     }
 }
