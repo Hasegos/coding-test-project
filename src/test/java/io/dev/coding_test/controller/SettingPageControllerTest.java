@@ -4,7 +4,7 @@ import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.support.TestLoginContext;
-import io.dev.coding_test.support.TestMembers;
+import io.dev.coding_test.support.TestUsers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,17 +28,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SettingPageControllerTest {
 
     @Autowired
-    private TestMembers testMembers;
+    private TestUsers testUsers;
 
     @Autowired
     private TestLoginContext testLoginContext;
 
     /** 로그인한 회원 (테스트마다 새로 가입) */
-    private Long memberId;
+    private Long userId;
 
     @BeforeEach
-    void loginMember() {
-        memberId = testMembers.login("tester").getMemberId();
+    void loginUser() {
+        userId = testUsers.login("tester").getUserId();
     }
 
     @AfterEach
@@ -64,7 +64,7 @@ class SettingPageControllerTest {
 
     @Test
     void 저장된_설정을_폼에_채우고_API_Key_값은_노출하지_않는다() throws Exception {
-        llmSettingService.save(memberId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
+        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
                 "qwen2.5-vl-7b-instruct", "secret-token", false));
 
         mockMvc.perform(get("/settings/llm"))
@@ -108,7 +108,7 @@ class SettingPageControllerTest {
                 .andExpect(content().string(containsString("LLM 서버가 아직 연결되지 않았어요")))
                 .andExpect(content().string(containsString("header__dot")));
 
-        llmSettingService.save(memberId, new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.10", 11434, "qwen2.5:7b", null, false));
+        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.10", 11434, "qwen2.5:7b", null, false));
 
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(not(containsString("LLM 서버가 아직 연결되지 않았어요"))))
