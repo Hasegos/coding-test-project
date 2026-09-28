@@ -1,8 +1,8 @@
 package io.dev.coding_test.event;
 
 import io.dev.coding_test.common.config.AsyncConfig;
+import io.dev.coding_test.common.util.SummaryStatusUtil;
 import io.dev.coding_test.model.Memo;
-import io.dev.coding_test.model.SummaryStatus;
 import io.dev.coding_test.repository.MemoRepository;
 import io.dev.coding_test.service.MemoSummaryService;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +14,6 @@ import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -54,8 +53,7 @@ public class MemoSummaryEventListener {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void resumeUnfinishedSummaries() {
-        List<Memo> unfinished = memoRepository.findBySummaryStatusIn(
-                EnumSet.of(SummaryStatus.PENDING, SummaryStatus.PROCESSING));
+        List<Memo> unfinished = memoRepository.findBySummaryStatusIn(SummaryStatusUtil.IN_PROGRESS);
         if (unfinished.isEmpty()) {
             return;
         }
