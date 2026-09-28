@@ -1,9 +1,9 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.view;
 
-import io.dev.coding_test.common.security.LoginUserId;
-import io.dev.coding_test.dto.LlmSettingRequest;
-import io.dev.coding_test.dto.LlmSettingResponse;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
+import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.model.enums.LlmProvider;
+import io.dev.coding_test.security.core.LoginUserId;
 import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.service.MemoSummaryService;
 import jakarta.validation.Valid;
