@@ -14,6 +14,8 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
@@ -27,9 +29,9 @@ class LmStudioLlmClientTest {
 
     private static final String BASE_URL = "http://lmstudio.test";
 
-    private final LlmProperties properties = new LlmProperties(0.2, null, null, 1, 10);
+    private final LlmProperties properties = new LlmProperties(0.2, null, null, null, null, 1, 10);
     private final LlmConnection connection =
-            new LlmConnection(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, "qwen2.5-7b-instruct", null);
+            new LlmConnection(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "qwen2.5-7b-instruct", null);
 
     private MockRestServiceServer server;
     private LmStudioLlmClient client;
@@ -38,7 +40,7 @@ class LmStudioLlmClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new LmStudioLlmClient(builder.build(), connection, properties,
+        client = new LmStudioLlmClient(builder.build(), builder.build(), connection, properties,
                 new SummaryResultParser(JsonMapper.builder().build()));
     }
 
@@ -78,7 +80,7 @@ class LmStudioLlmClientTest {
     }
 
     @Test
-    void 서버_오류_응답은_LlmException으로_변환한다() {
+    void 서버_오류_응답은_본문_없이_상태_코드_안내로_변환한다() {
         server.expect(requestTo(BASE_URL + "/v1/chat/completions"))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -86,8 +88,8 @@ class LmStudioLlmClientTest {
 
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
                 .isInstanceOf(LlmException.class)
-                .hasMessageContaining("HTTP 400")
-                .hasMessageContaining("No models loaded");
+                .hasMessage("LLM 서버가 요청을 거부했어요. (400) 모델이 로드되어 있는지, 모델명이 맞는지 확인해주세요.")
+                .hasMessageNotContaining("No models loaded");
     }
 
     @Test
@@ -101,14 +103,14 @@ class LmStudioLlmClientTest {
     }
 
     @Test
-    void 모델_목록을_조회하고_중복_제거_후_정렬한다() {
+    void 모델_목록을_조회하고_임베딩_모델은_뺀다() {
         server.expect(requestTo(BASE_URL + "/v1/models"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("""
                         {"object": "list", "data": [{"id": "qwen2.5-vl-7b-instruct", "object": "model"}, {"id": "text-embedding-nomic-embed-text-v1.5"}]}
                         """, MediaType.APPLICATION_JSON));
 
-        assertThat(client.listModels()).containsExactly("qwen2.5-vl-7b-instruct", "text-embedding-nomic-embed-text-v1.5");
+        assertThat(client.listModels()).hasValue(List.of("qwen2.5-vl-7b-instruct"));
         server.verify();
     }
 
@@ -119,6 +121,6 @@ class LmStudioLlmClientTest {
 
         assertThatThrownBy(() -> client.listModels())
                 .isInstanceOf(LlmException.class)
-                .hasMessageContaining("HTTP 401");
+                .hasMessage("LLM 서버 인증에 실패했어요. API Key를 확인해주세요.");
     }
 }
