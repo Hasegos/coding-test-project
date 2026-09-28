@@ -17,13 +17,14 @@ import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * LLM 설정 화면에서 저장한 접속 정보로 런타임별 {@link LlmClient}를 만든다.
  * <p>
- * 요약마다 HTTP 클라이언트를 새로 만들지 않도록 마지막으로 만든 클라이언트를 접속 정보 단위로 재사용하고,
- * 설정이 바뀌면(접속 정보가 달라지면) 새로 만든다.
+ * 요약마다 HTTP 클라이언트를 새로 만들지 않도록 접속 정보 단위로 최근 {@value #CACHE_SIZE}개를 재사용하고(LRU),
+ * 설정이 바뀌면(접속 정보가 달라지면) 새로 만든다. 회원마다 LLM 서버가 다르므로 여러 개를 보관한다.
  * </p>
  * <ul>
  *     <li>클라이언트를 돌려주기 전에 매번 {@link LlmHostGuard}로 주소를 다시 검사한다. (저장 후 규칙이 바뀐 경우 대비)</li>
@@ -41,10 +42,18 @@ public class LlmClientFactory {
     private final SummaryResultParser parser;
     private final LlmHostGuard llmHostGuard;
 
-    private final AtomicReference<CachedClient> cache = new AtomicReference<>();
+    /** 재사용할 클라이언트 수 (회원별 접속 정보) */
+    static final int CACHE_SIZE = 32;
+
+    private final Map<LlmConnection, LlmClient> cache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<LlmConnection, LlmClient> eldest) {
+            return size() > CACHE_SIZE;
+        }
+    };
 
     /**
-     * 접속 정보에 맞는 LLM 클라이언트를 반환한다. 직전과 같은 접속 정보면 만들어 둔 클라이언트를 재사용한다.
+     * 접속 정보에 맞는 LLM 클라이언트를 반환한다. 최근에 같은 접속 정보로 만든 클라이언트가 있으면 재사용한다.
      *
      * @param connection LLM 서버 접속 정보
      * @return LLM 클라이언트
@@ -52,14 +61,16 @@ public class LlmClientFactory {
      */
     public LlmClient getClient(LlmConnection connection) {
         llmHostGuard.check(connection.host());
-        CachedClient cached = cache.get();
-        if (cached != null && cached.connection().equals(connection)) {
-            return cached.client();
+        synchronized (cache) {
+            LlmClient cached = cache.get(connection);
+            if (cached != null) {
+                return cached;
+            }
+            LlmClient client = create(connection);
+            cache.put(connection, client);
+            log.info("LLM 클라이언트 생성 - {}", connection);
+            return client;
         }
-        LlmClient client = create(connection);
-        cache.set(new CachedClient(connection, client));
-        log.info("LLM 클라이언트 생성 - {}", connection);
-        return client;
     }
 
     /**
@@ -100,8 +111,5 @@ public class LlmClientFactory {
             builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + connection.apiKey());
         }
         return builder.build();
-    }
-
-    private record CachedClient(LlmConnection connection, LlmClient client) {
     }
 }
