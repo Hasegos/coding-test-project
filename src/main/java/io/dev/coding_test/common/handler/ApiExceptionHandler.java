@@ -1,7 +1,7 @@
 package io.dev.coding_test.common.handler;
 
 import io.dev.coding_test.common.exception.NotFoundException;
-import io.dev.coding_test.dto.ErrorResponse;
+import io.dev.coding_test.dto.common.ErrorResponse;
 import io.dev.coding_test.llm.exception.LlmException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
