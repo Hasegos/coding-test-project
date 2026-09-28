@@ -38,6 +38,9 @@ import java.util.Optional;
  *     <li>LLM 호출은 DB 커넥션을 잡지 않도록 트랜잭션 밖에서 수행하고, 결과 반영은 짧은 새 트랜잭션에서 처리한다.</li>
  *     <li>요약 중 메모가 수정·삭제되면 revision이 달라지므로 오래된 결과는 버린다.</li>
  * </ol>
+ * <p>
+ * 요약은 메모 작성자의 LLM 설정으로 실행하고, 조회·재요약은 로그인한 회원 자신의 메모만 다룬다.
+ * </p>
  */
 @Slf4j
 @Service
@@ -84,39 +87,44 @@ public class MemoSummaryService {
     /**
      * 메모의 요약 결과를 조회한다.
      *
-     * @param memoId 메모 ID
+     * @param memberId 로그인한 회원 ID
+     * @param memoId   메모 ID
      * @return 요약 결과
-     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
     @Transactional(readOnly = true)
-    public MemoSummaryResponse getSummary(Long memoId) {
-        return MemoSummaryResponse.from(findMemo(memoId));
+    public MemoSummaryResponse getSummary(Long memberId, Long memoId) {
+        return MemoSummaryResponse.from(memoRepository.findWithTodosByMemoIdAndMemberMemberId(memoId, memberId)
+                .orElseThrow(() -> notFound(memoId)));
     }
 
     /**
      * 메모의 요약 상태만 조회한다. (화면의 요약 상태 폴링 — 본문·할 일을 읽지 않는 1쿼리)
      *
-     * @param memoId 메모 ID
+     * @param memberId 로그인한 회원 ID
+     * @param memoId   메모 ID
      * @return 요약 상태
-     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
     @Transactional(readOnly = true)
-    public MemoSummaryStatusResponse getSummaryStatus(Long memoId) {
-        SummaryStatus status = memoRepository.findSummaryStatus(memoId)
-                .orElseThrow(() -> new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId));
+    public MemoSummaryStatusResponse getSummaryStatus(Long memberId, Long memoId) {
+        SummaryStatus status = memoRepository.findSummaryStatus(memoId, memberId)
+                .orElseThrow(() -> notFound(memoId));
         return MemoSummaryStatusResponse.of(status);
     }
 
     /**
      * 메모 재요약을 요청한다. 이미 요약 중(PENDING/PROCESSING)이면 중복 요청하지 않는다.
      *
-     * @param memoId 메모 ID
+     * @param memberId 로그인한 회원 ID
+     * @param memoId   메모 ID
      * @return 요청 후 요약 상태
-     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
     @Transactional
-    public MemoSummaryResponse retry(Long memoId) {
-        Memo memo = findMemo(memoId);
+    public MemoSummaryResponse retry(Long memberId, Long memoId) {
+        Memo memo = memoRepository.findWithTodosByMemoIdAndMemberMemberId(memoId, memberId)
+                .orElseThrow(() -> notFound(memoId));
         if (!SummaryStatusUtil.isInProgress(memo.getSummaryStatus())) {
             requestSummary(memo);
         }
@@ -124,26 +132,27 @@ public class MemoSummaryService {
     }
 
     /**
-     * 요약에 실패한 메모를 모두 다시 요약 요청한다. (LLM 설정을 저장한 직후 호출)
+     * 회원의 요약에 실패한 메모를 모두 다시 요약 요청한다. (LLM 설정을 저장한 직후 호출)
      *
+     * @param memberId 로그인한 회원 ID
      * @return 다시 요청한 메모 수
      */
     @Transactional
-    public int retryFailed() {
+    public int retryFailed(Long memberId) {
         // 메모 본문을 읽지 않도록 ID·revision만 조회하고, 상태는 UPDATE 한 번으로 바꾼다.
-        List<MemoRevision> failed = memoRepository.findRevisionsBySummaryStatusIn(List.of(SummaryStatus.FAILED));
+        List<MemoRevision> failed = memoRepository.findRevisions(memberId, SummaryStatus.FAILED);
         if (failed.isEmpty()) {
             return 0;
         }
-        memoRepository.markPendingByStatus(SummaryStatus.FAILED);
+        memoRepository.markPendingByStatus(memberId, SummaryStatus.FAILED);
         failed.forEach(memo -> eventPublisher.publishEvent(
                 new MemoSummaryRequestedEvent(memo.memoId(), memo.revision())));
-        log.info("실패한 요약 재요청 - {}건", failed.size());
+        log.info("실패한 요약 재요청 - memberId: {}, {}건", memberId, failed.size());
         return failed.size();
     }
 
     /**
-     * 로컬 LLM으로 메모를 요약하고 결과를 반영한다. (LLM 전용 실행기에서 호출)
+     * 메모 작성자의 LLM 설정으로 메모를 요약하고 결과를 반영한다. (LLM 전용 실행기에서 호출)
      *
      * @param memoId   메모 ID
      * @param revision 요약 요청 시점의 메모 revision
@@ -152,16 +161,16 @@ public class MemoSummaryService {
         Optional<MemoSnapshot> snapshot = newTransaction.execute(status ->
                 findCurrent(memoId, revision).map(memo -> {
                     memo.setSummaryStatus(SummaryStatus.PROCESSING);
-                    return new MemoSnapshot(memo.getTitle(), memo.getContent());
+                    return new MemoSnapshot(memo.getMember().getMemberId(), memo.getTitle(), memo.getContent());
                 }));
         if (snapshot == null || snapshot.isEmpty()) {
             log.info("요약 건너뜀(삭제 또는 수정됨) - memoId: {}, revision: {}", memoId, revision);
             return;
         }
 
-        Optional<LlmConnection> connection = llmSettingService.findConnection();
+        Optional<LlmConnection> connection = llmSettingService.findConnection(snapshot.get().memberId());
         if (connection.isEmpty()) {
-            log.warn("요약 실패(LLM 미설정) - memoId: {}", memoId);
+            log.warn("요약 실패(LLM 미설정) - memberId: {}, memoId: {}", snapshot.get().memberId(), memoId);
             fail(memoId, revision, NOT_CONFIGURED_MESSAGE);
             return;
         }
@@ -249,11 +258,10 @@ public class MemoSummaryService {
         return memoRepository.findById(memoId).filter(memo -> memo.getRevision() == revision);
     }
 
-    private Memo findMemo(Long memoId) {
-        return memoRepository.findWithTodosByMemoId(memoId)
-                .orElseThrow(() -> new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId));
+    private static NotFoundException notFound(Long memoId) {
+        return new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId);
     }
 
-    private record MemoSnapshot(String title, String content) {
+    private record MemoSnapshot(Long memberId, String title, String content) {
     }
 }
