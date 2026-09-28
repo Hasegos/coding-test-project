@@ -8,9 +8,11 @@ import io.dev.coding_test.service.MemoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -64,5 +66,29 @@ public class MemoApiController {
     @GetMapping("/{memoId}")
     public MemoResponse get(@PathVariable Long memoId) {
         return memoService.getMemo(memoId);
+    }
+
+    /**
+     * 메모 제목과 본문을 수정한다.
+     *
+     * @param memoId  메모 ID
+     * @param request 메모 수정 요청
+     * @return 수정된 메모, 없으면 404
+     */
+    @PutMapping("/{memoId}")
+    public MemoResponse update(@PathVariable Long memoId, @Valid @RequestBody MemoRequest request) {
+        return memoService.update(memoId, request);
+    }
+
+    /**
+     * 메모를 삭제한다.
+     *
+     * @param memoId 메모 ID
+     * @return 204 No Content, 없으면 404
+     */
+    @DeleteMapping("/{memoId}")
+    public ResponseEntity<Void> delete(@PathVariable Long memoId) {
+        memoService.delete(memoId);
+        return ResponseEntity.noContent().build();
     }
 }
