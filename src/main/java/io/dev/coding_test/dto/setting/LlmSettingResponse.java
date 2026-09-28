@@ -1,4 +1,4 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.setting;
 
 import io.dev.coding_test.model.LlmSetting;
 import io.dev.coding_test.model.enums.LlmProvider;
