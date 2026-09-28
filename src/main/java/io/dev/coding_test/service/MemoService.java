@@ -80,6 +80,35 @@ public class MemoService {
     }
 
     /**
+     * 메모 제목과 본문을 수정한다. 제목/본문의 앞뒤 공백은 제거한다.
+     *
+     * @param memoId  메모 ID
+     * @param request 메모 수정 요청
+     * @return 수정된 메모
+     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     */
+    @Transactional
+    public MemoResponse update(Long memoId, MemoRequest request) {
+        Memo memo = findMemo(memoId);
+        memo.update(request.getTitle().strip(), request.getContent().strip());
+        memoRepository.flush();
+        log.info("메모 수정 - memoId: {}", memoId);
+        return MemoResponse.from(memo);
+    }
+
+    /**
+     * 메모를 삭제한다.
+     *
+     * @param memoId 메모 ID
+     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     */
+    @Transactional
+    public void delete(Long memoId) {
+        memoRepository.delete(findMemo(memoId));
+        log.info("메모 삭제 - memoId: {}", memoId);
+    }
+
+    /**
      * 메모 엔티티를 조회한다.
      *
      * @param memoId 메모 ID
