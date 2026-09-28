@@ -1,6 +1,12 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.config;
 
 import com.sun.net.httpserver.HttpServer;
+import io.dev.coding_test.llm.client.LlmClient;
+import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.parser.SummaryResultParser;
+import io.dev.coding_test.llm.provider.lmstudio.LmStudioLlmClient;
+import io.dev.coding_test.llm.provider.ollama.OllamaLlmClient;
+import io.dev.coding_test.model.enums.LlmProvider;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 

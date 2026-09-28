@@ -1,12 +1,16 @@
 package io.dev.coding_test.service;
 
 import io.dev.coding_test.common.exception.NotFoundException;
+import io.dev.coding_test.common.util.SummaryStatusUtil;
+import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.MemoSummaryResponse;
 import io.dev.coding_test.event.MemoSummaryRequestedEvent;
-import io.dev.coding_test.llm.LlmClient;
-import io.dev.coding_test.llm.LlmException;
-import io.dev.coding_test.llm.SummaryResult;
+import io.dev.coding_test.llm.client.LlmClient;
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.Memo;
+import io.dev.coding_test.model.MemoTodo;
+import io.dev.coding_test.model.enums.SummaryStatus;
 import io.dev.coding_test.repository.MemoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -16,6 +20,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -60,7 +65,8 @@ public class MemoSummaryService {
      * @param memo 요약할 메모 (영속 상태)
      */
     public void requestSummary(Memo memo) {
-        memo.markSummaryPending();
+        memo.setSummaryStatus(SummaryStatus.PENDING);
+        memo.setSummaryError(null);
         eventPublisher.publishEvent(new MemoSummaryRequestedEvent(memo.getMemoId(), memo.getRevision()));
         log.info("요약 요청 - memoId: {}, revision: {}", memo.getMemoId(), memo.getRevision());
     }
@@ -87,7 +93,7 @@ public class MemoSummaryService {
     @Transactional
     public MemoSummaryResponse retry(Long memoId) {
         Memo memo = findMemo(memoId);
-        if (!memo.getSummaryStatus().isInProgress()) {
+        if (!SummaryStatusUtil.isInProgress(memo.getSummaryStatus())) {
             requestSummary(memo);
         }
         return MemoSummaryResponse.from(memo);
@@ -102,7 +108,7 @@ public class MemoSummaryService {
     public void summarize(Long memoId, long revision) {
         Optional<MemoSnapshot> snapshot = newTransaction.execute(status ->
                 findCurrent(memoId, revision).map(memo -> {
-                    memo.markSummaryProcessing();
+                    memo.setSummaryStatus(SummaryStatus.PROCESSING);
                     return new MemoSnapshot(memo.getTitle(), memo.getContent());
                 }));
         if (snapshot == null || snapshot.isEmpty()) {
@@ -126,7 +132,7 @@ public class MemoSummaryService {
         newTransaction.executeWithoutResult(status ->
                 findCurrent(memoId, revision).ifPresentOrElse(
                         memo -> {
-                            memo.completeSummary(result.summary(), result.todos(), llmClient.model());
+                            applySummary(memo, result, llmClient.model());
                             log.info("요약 완료 - memoId: {}, 할 일: {}개", memoId, result.todos().size());
                         },
                         () -> log.info("요약 결과 폐기(삭제 또는 수정됨) - memoId: {}, revision: {}", memoId, revision)
@@ -143,7 +149,44 @@ public class MemoSummaryService {
     public void fail(Long memoId, long revision, String error) {
         String message = error.length() <= MAX_ERROR_LENGTH ? error : error.substring(0, MAX_ERROR_LENGTH - 1) + "…";
         newTransaction.executeWithoutResult(status ->
-                findCurrent(memoId, revision).ifPresent(memo -> memo.failSummary(message)));
+                findCurrent(memoId, revision).ifPresent(memo -> {
+                    // 이전에 성공한 요약이 있으면 그대로 두고 상태와 실패 사유만 기록한다.
+                    memo.setSummaryStatus(SummaryStatus.FAILED);
+                    memo.setSummaryError(message);
+                }));
+    }
+
+    /**
+     * 메모의 기존 요약 결과(요약문, 모델, 요약 일시, 할 일)를 비운다. (내용 수정 시)
+     *
+     * @param memo 요약을 비울 메모 (영속 상태)
+     */
+    public void clearSummary(Memo memo) {
+        memo.setSummary(null);
+        memo.setSummaryModel(null);
+        memo.setSummarizedAt(null);
+        memo.getTodos().clear();
+    }
+
+    /**
+     * 요약 결과를 메모에 반영하고 완료 상태로 변경한다. 기존 할 일 목록은 새 목록으로 교체한다.
+     */
+    private void applySummary(Memo memo, SummaryResult result, String model) {
+        memo.setSummary(result.summary());
+        memo.setSummaryModel(model);
+        memo.setSummaryError(null);
+        memo.setSummarizedAt(TimeUtil.now());
+        memo.setSummaryStatus(SummaryStatus.DONE);
+
+        memo.getTodos().clear();
+        List<String> todos = result.todos();
+        for (int i = 0; i < todos.size(); i++) {
+            MemoTodo todo = new MemoTodo();
+            todo.setMemo(memo);
+            todo.setContent(todos.get(i));
+            todo.setSortOrder(i);
+            memo.getTodos().add(todo);
+        }
     }
 
     /**

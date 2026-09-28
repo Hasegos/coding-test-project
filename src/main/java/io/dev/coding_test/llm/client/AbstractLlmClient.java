@@ -1,5 +1,10 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.client;
 
+import io.dev.coding_test.llm.config.LlmProperties;
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.parser.SummaryResultParser;
+import io.dev.coding_test.llm.prompt.SummaryPrompt;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;

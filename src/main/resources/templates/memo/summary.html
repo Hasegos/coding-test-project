@@ -1,6 +1,6 @@
 <!-- 메모 상세 AI 요약 패널 (상세 페이지 최초 렌더링 + 상태 변경 시 fragment 교체에 공통 사용) -->
 <aside class="summary card" th:fragment="panel"
-       th:with="summary=${memo.summary}, inProgress=${memo.summary.status.inProgress}"
+       th:with="summary=${memo.summary}, inProgress=${memo.summary.inProgress}"
        th:attr="data-memo-id=${memo.memoId},data-status=${summary.status}"
        data-summary-panel aria-labelledby="summary-title" aria-live="polite">
 

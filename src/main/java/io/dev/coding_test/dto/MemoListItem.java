@@ -1,7 +1,7 @@
 package io.dev.coding_test.dto;
 
 import io.dev.coding_test.model.Memo;
-import io.dev.coding_test.model.SummaryStatus;
+import io.dev.coding_test.model.enums.SummaryStatus;
 
 import java.time.LocalDateTime;
 

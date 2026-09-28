@@ -1,17 +1,18 @@
 package io.dev.coding_test.model;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * 로컬 LLM이 메모에서 추출한 할 일 항목.
  */
 @Entity
 @Getter
+@Setter
 @Table(name = "memo_todo")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
 public class MemoTodo {
 
     @Id
@@ -28,10 +29,4 @@ public class MemoTodo {
 
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
-
-    MemoTodo(Memo memo, String content, int sortOrder) {
-        this.memo = memo;
-        this.content = content;
-        this.sortOrder = sortOrder;
-    }
 }

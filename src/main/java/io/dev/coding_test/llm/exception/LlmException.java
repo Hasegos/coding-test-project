@@ -1,4 +1,4 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.exception;
 
 /**
  * 로컬 LLM 호출 또는 응답 해석에 실패했을 때 발생하는 예외.

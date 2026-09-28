@@ -1,6 +1,6 @@
 package io.dev.coding_test.common.config;
 
-import io.dev.coding_test.llm.LlmProperties;
+import io.dev.coding_test.llm.config.LlmProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;

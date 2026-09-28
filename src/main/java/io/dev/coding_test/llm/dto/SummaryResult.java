@@ -1,4 +1,4 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.dto;
 
 import java.util.List;
 

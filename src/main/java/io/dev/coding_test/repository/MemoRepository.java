@@ -1,7 +1,7 @@
 package io.dev.coding_test.repository;
 
 import io.dev.coding_test.model.Memo;
-import io.dev.coding_test.model.SummaryStatus;
+import io.dev.coding_test.model.enums.SummaryStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

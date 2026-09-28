@@ -1,5 +1,6 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.config;
 
+import io.dev.coding_test.model.enums.LlmProvider;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -43,7 +44,7 @@ public record LlmProperties(LlmProvider provider,
      * @return 설정된 주소, 없으면 런타임별 기본 주소
      */
     public String resolvedBaseUrl() {
-        String url = (baseUrl == null || baseUrl.isBlank()) ? provider.defaultBaseUrl() : baseUrl.strip();
+        String url = (baseUrl == null || baseUrl.isBlank()) ? "http://localhost:" + provider.getDefaultPort() : baseUrl.strip();
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 

@@ -1,4 +1,9 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.client;
+
+import io.dev.coding_test.llm.config.LlmConfig;
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
+
 
 /**
  * 로컬 LLM에 메모 요약을 요청하는 클라이언트.

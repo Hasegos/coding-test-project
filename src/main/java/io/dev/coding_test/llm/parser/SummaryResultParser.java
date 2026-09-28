@@ -1,5 +1,7 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.parser;
 
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
