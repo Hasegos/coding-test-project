@@ -119,4 +119,28 @@ class OllamaLlmClientTest {
                 .isInstanceOf(LlmException.class)
                 .hasMessageContaining("HTTP 401");
     }
+
+    @Test
+    void JSON이_아닌_오류_응답_본문은_노출하지_않는다() {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.TEXT_HTML)
+                        .body("<html><body>Internal Admin Panel v1.2 - secret-token=abc</body></html>"));
+
+        assertThatThrownBy(() -> client.listModels())
+                .isInstanceOf(LlmException.class)
+                .hasMessage("LLM 서버 오류 (HTTP 404)");
+    }
+
+    @Test
+    void JSON_오류는_error_message_필드만_보여준다() {
+        server.expect(requestTo(BASE_URL + "/api/chat"))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"error\": {\"message\": \"context length exceeded\", \"internal\": \"x\"}}"));
+
+        assertThatThrownBy(() -> client.summarize("제목", "본문"))
+                .isInstanceOf(LlmException.class)
+                .hasMessage("LLM 서버 오류 (HTTP 400): context length exceeded");
+    }
 }
