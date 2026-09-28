@@ -1,4 +1,4 @@
-package io.dev.coding_test.common.security;
+package io.dev.coding_test.security.core;
 
 import io.dev.coding_test.model.User;
 import io.dev.coding_test.model.enums.UserRole;
