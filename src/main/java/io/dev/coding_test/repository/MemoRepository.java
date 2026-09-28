@@ -39,4 +39,12 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
      * @return 해당 상태의 메모 목록
      */
     List<Memo> findBySummaryStatusIn(Collection<SummaryStatus> statuses);
+
+    /**
+     * 요약 상태가 주어진 값인 메모를 조회한다. (LLM 설정 저장 후 실패한 요약 재요청)
+     *
+     * @param status 조회할 요약 상태
+     * @return 해당 상태의 메모 목록
+     */
+    List<Memo> findBySummaryStatus(SummaryStatus status);
 }
