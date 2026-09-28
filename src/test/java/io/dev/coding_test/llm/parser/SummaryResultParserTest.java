@@ -64,6 +64,38 @@ class SummaryResultParserTest {
     }
 
     @Test
+    void 원문에_없는_담당자가_붙은_할_일은_제거한다() {
+        String source = "주간 회의\n배포 일정 논의. QA 일정 공유 필요";
+
+        SummaryResult result = parser.parse("""
+                {"summary": "배포 일정을 논의했다.",
+                 "todos": ["[민수, 10/14까지] 배포 스크립트 점검하기", "QA 일정 공유하기"]}
+                """, source);
+
+        assertThat(result.todos()).containsExactly("QA 일정 공유하기");
+    }
+
+    @Test
+    void 원문에_있는_담당자와_기한은_표기가_달라도_유지한다() {
+        String source = "보고서\n지훈 님이 금요일 까지 보고서 제출. 10월 14일 배포";
+
+        SummaryResult result = parser.parse("""
+                {"summary": "보고서 제출과 배포 일정.",
+                 "todos": ["[지훈님, 금요일까지] 보고서 제출하기", "[10/14까지] 배포하기", "회고 작성하기"]}
+                """, source);
+
+        assertThat(result.todos())
+                .containsExactly("[지훈님, 금요일까지] 보고서 제출하기", "[10/14까지] 배포하기", "회고 작성하기");
+    }
+
+    @Test
+    void 원문이_없으면_태그를_검사하지_않는다() {
+        SummaryResult result = parser.parse("{\"summary\": \"요약\", \"todos\": [\"[민수] 점검하기\"]}");
+
+        assertThat(result.todos()).containsExactly("[민수] 점검하기");
+    }
+
+    @Test
     void 해석할_수_없는_응답은_LlmException이_발생한다() {
         assertThatThrownBy(() -> parser.parse("")).isInstanceOf(LlmException.class);
         assertThatThrownBy(() -> parser.parse("요약할 수 없습니다.")).isInstanceOf(LlmException.class)

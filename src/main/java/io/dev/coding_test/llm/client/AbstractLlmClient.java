@@ -79,7 +79,7 @@ public abstract class AbstractLlmClient implements LlmClient {
         }
         log.info("LLM 응답 수신 - provider: {}, model: {}, {}ms",
                 connection.provider(), connection.model(), elapsed(start).toMillis());
-        return parser.parse(raw);
+        return parser.parse(raw, title + "\n" + content);
     }
 
     @Override

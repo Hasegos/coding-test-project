@@ -81,6 +81,24 @@ class OllamaLlmClientTest {
     }
 
     @Test
+    void 메모에_없는_담당자가_붙은_할_일은_결과에서_빠진다() {
+        server.expect(requestTo(BASE_URL + "/api/chat"))
+                .andRespond(withSuccess("""
+                        {
+                          "message": {
+                            "role": "assistant",
+                            "content": "{\\"summary\\": \\"QA 일정을 논의했다.\\", \\"todos\\": [\\"[민수, 10/14까지] 배포 스크립트 점검하기\\", \\"[지영] QA 일정 공유하기\\"]}"
+                          },
+                          "done": true
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        SummaryResult result = client.summarize("주간 회의", "지영: QA 일정 공유 필요");
+
+        assertThat(result.todos()).containsExactly("[지영] QA 일정 공유하기");
+    }
+
+    @Test
     void 채팅_404는_모델을_찾을_수_없다는_메시지로_변환한다() {
         server.expect(requestTo(BASE_URL + "/api/chat"))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND)
