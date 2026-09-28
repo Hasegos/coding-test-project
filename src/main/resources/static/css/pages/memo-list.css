@@ -92,6 +92,10 @@
     font-variant-numeric: tabular-nums;
 }
 
+.memo-card__head .badge { flex: none; }
+
+.memo-card__todo { color: var(--primary); font-weight: 600; }
+
 /* ===================== 빈 상태 ===================== */
 .empty {
     display: flex;

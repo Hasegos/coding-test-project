@@ -37,11 +37,23 @@
 .detail-head__actions { display: flex; gap: 8px; }
 
 /* ===================== 본문 ===================== */
+/* 모바일: 요약 → 원문 순서 / 데스크톱: 원문(왼쪽) + 요약(오른쪽, sticky) */
 .detail-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "summary" "content";
     gap: 20px;
     align-items: start;
+}
+.detail-layout > .summary { grid-area: summary; }
+.detail-layout > .detail-content { grid-area: content; }
+
+@media (min-width: 900px) {
+    .detail-layout {
+        grid-template-columns: minmax(0, 1fr) 380px;
+        grid-template-areas: "content summary";
+    }
+    .detail-layout > .summary { position: sticky; top: 80px; }
 }
 
 .section-title {
@@ -56,9 +68,132 @@
 
 .detail-content__body {
     white-space: pre-wrap;
-    word-break: break-word;
+    word-break: keep-all;          /* 한국어는 단어(어절) 단위로 줄바꿈 */
+    overflow-wrap: anywhere;       /* 긴 URL 등은 강제로 줄바꿈 */
     line-height: 1.8;
     font-size: 15px;
+}
+
+/* ===================== AI 요약 패널 ===================== */
+.summary {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+    background:
+        linear-gradient(180deg, var(--primary-soft) 0, transparent 120px),
+        var(--surface);
+}
+
+.summary__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.summary__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--primary);
+}
+.summary__title svg { width: 18px; height: 18px; }
+
+.summary__text { line-height: 1.75; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+
+.summary__note { font-size: 12px; color: var(--text-subtle); margin-bottom: -8px; }
+
+/* 로딩 */
+.summary__loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 0 4px; }
+
+.summary__spinner {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 3px solid var(--primary-soft);
+    border-top-color: var(--primary);
+    animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.summary__loading-text { font-size: 14px; color: var(--text-muted); text-align: center; }
+
+.skeleton { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.skeleton span {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+}
+.skeleton span:nth-child(2) { width: 85%; }
+.skeleton span:nth-child(3) { width: 60%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* 실패 */
+.summary__error {
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: 14px;
+}
+.summary__error p { margin-top: 4px; color: var(--text); word-break: keep-all; overflow-wrap: anywhere; }
+
+/* 할 일 */
+.todos { border-top: 1px dashed var(--border); padding-top: 14px; }
+
+.todos__title { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; }
+
+.todos__count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    margin-left: 4px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-size: 11px;
+}
+
+.todos__list { display: flex; flex-direction: column; gap: 8px; }
+
+.todos__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+.todos__check {
+    flex: none;
+    width: 16px; height: 16px;
+    margin-top: 2px;
+    border-radius: 5px;
+    border: 2px solid var(--primary);
+}
+
+.todos__empty { font-size: 14px; color: var(--text-subtle); }
+
+.summary__foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+}
+.summary__meta { font-size: 12px; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.summary__retry { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+    .summary__spinner, .skeleton span { animation: none; }
 }
 
 @media (max-width: 520px) {

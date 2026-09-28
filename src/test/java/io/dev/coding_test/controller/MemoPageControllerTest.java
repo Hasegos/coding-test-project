@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -160,5 +161,45 @@ class MemoPageControllerTest {
         mockMvc.perform(get("/memos/{id}/edit", 9_999))
                 .andExpect(status().isNotFound())
                 .andExpect(view().name("error/error"));
+    }
+
+    @Test
+    void 상세_페이지에_AI_요약_패널을_렌더링한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/memos/{id}", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-summary-panel")))
+                .andExpect(content().string(containsString("AI 요약")))
+                .andExpect(content().string(containsString("요약 대기")));
+    }
+
+    @Test
+    void 요약_패널_fragment만_렌더링한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/memos/{id}/summary", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-summary-panel")))
+                .andExpect(content().string(containsString("data-status=\"PENDING\"")))
+                .andExpect(content().string(not(containsString("<html"))));
+    }
+
+    @Test
+    void 재요약_요청후_상세_페이지로_리다이렉트한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(post("/memos/{id}/summary", memo.memoId()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/memos/" + memo.memoId()))
+                .andExpect(flash().attribute("toast", "요약을 다시 요청했어요."));
+    }
+
+    @Test
+    void 목록_카드에_요약_상태를_표시한다() throws Exception {
+        memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/memos"))
+                .andExpect(content().string(containsString("badge--pending")));
     }
 }

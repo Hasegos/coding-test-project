@@ -3,6 +3,7 @@
 <head>
     <th:block th:replace="~{fragments/head :: head(${memo.title})}"></th:block>
     <link rel="stylesheet" th:href="@{/css/pages/memo-detail.css}">
+    <script th:src="@{/js/memo-detail.js}" defer></script>
 </head>
 <body>
 <div th:replace="~{fragments/header :: header}"></div>
@@ -32,6 +33,8 @@
     </div>
 
     <div class="detail-layout">
+        <aside th:replace="~{memo/summary :: panel}"></aside>
+
         <section class="detail-content card" aria-labelledby="content-title">
             <h2 class="section-title" id="content-title">원문</h2>
             <div class="detail-content__body" th:text="${memo.content}">메모 본문</div>

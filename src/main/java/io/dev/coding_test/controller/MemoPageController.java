@@ -5,6 +5,7 @@ import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.service.MemoService;
+import io.dev.coding_test.service.MemoSummaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class MemoPageController {
     private static final int PAGE_WINDOW = 5;
 
     private final MemoService memoService;
+    private final MemoSummaryService memoSummaryService;
 
     /**
      * 메모 목록 페이지를 렌더링한다.
@@ -153,5 +155,33 @@ public class MemoPageController {
         MemoResponse memo = memoService.create(request);
         redirectAttributes.addFlashAttribute("toast", "메모를 저장했어요.");
         return "redirect:/memos/" + memo.memoId();
+    }
+
+    /**
+     * 메모 상세 페이지의 AI 요약 패널 fragment를 렌더링한다.
+     * 화면 스크립트가 요약 상태가 바뀌었을 때 패널을 교체하는 데 사용한다.
+     *
+     * @param memoId 메모 ID
+     * @param model  뷰에 전달할 데이터 모델
+     * @return 요약 패널 fragment
+     */
+    @GetMapping("/{memoId}/summary")
+    public String summaryPanel(@PathVariable Long memoId, Model model) {
+        model.addAttribute("memo", memoService.getMemo(memoId));
+        return "memo/summary :: panel";
+    }
+
+    /**
+     * 메모 재요약을 요청하고 상세 페이지로 이동한다. (JavaScript 미사용 환경 대비)
+     *
+     * @param memoId             메모 ID
+     * @param redirectAttributes 리다이렉트 후 보여줄 메시지
+     * @return 상세 페이지 리다이렉트
+     */
+    @PostMapping("/{memoId}/summary")
+    public String retrySummary(@PathVariable Long memoId, RedirectAttributes redirectAttributes) {
+        memoSummaryService.retry(memoId);
+        redirectAttributes.addFlashAttribute("toast", "요약을 다시 요청했어요.");
+        return "redirect:/memos/" + memoId;
     }
 }

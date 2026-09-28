@@ -27,9 +27,11 @@ public class MemoService {
     private static final Sort LATEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt", "memoId");
 
     private final MemoRepository memoRepository;
+    private final MemoSummaryService memoSummaryService;
 
     /**
      * 메모를 저장한다. 제목/본문의 앞뒤 공백은 제거한다.
+     * 저장 트랜잭션이 커밋되면 로컬 LLM 요약이 비동기로 시작된다.
      *
      * @param request 메모 작성 요청
      * @return 저장된 메모
@@ -38,6 +40,7 @@ public class MemoService {
     public MemoResponse create(MemoRequest request) {
         Memo memo = memoRepository.save(new Memo(request.getTitle().strip(), request.getContent().strip()));
         log.info("메모 저장 - memoId: {}", memo.getMemoId());
+        memoSummaryService.requestSummary(memo);
         return MemoResponse.from(memo);
     }
 
@@ -81,6 +84,7 @@ public class MemoService {
 
     /**
      * 메모 제목과 본문을 수정한다. 제목/본문의 앞뒤 공백은 제거한다.
+     * 내용이 실제로 바뀐 경우에만 기존 요약을 비우고 다시 요약한다.
      *
      * @param memoId  메모 ID
      * @param request 메모 수정 요청
@@ -90,9 +94,10 @@ public class MemoService {
     @Transactional
     public MemoResponse update(Long memoId, MemoRequest request) {
         Memo memo = findMemo(memoId);
-        memo.update(request.getTitle().strip(), request.getContent().strip());
-        memoRepository.flush();
-        log.info("메모 수정 - memoId: {}", memoId);
+        if (memo.update(request.getTitle().strip(), request.getContent().strip())) {
+            log.info("메모 수정 - memoId: {}, revision: {}", memoId, memo.getRevision());
+            memoSummaryService.requestSummary(memo);
+        }
         return MemoResponse.from(memo);
     }
 
