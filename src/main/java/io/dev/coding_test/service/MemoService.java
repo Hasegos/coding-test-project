@@ -1,6 +1,7 @@
 package io.dev.coding_test.service;
 
 import io.dev.coding_test.common.exception.NotFoundException;
+import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
@@ -13,6 +14,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 /**
  * 메모 작성·조회·수정·삭제 비즈니스 로직을 처리하는 서비스.
@@ -38,7 +41,14 @@ public class MemoService {
      */
     @Transactional
     public MemoResponse create(MemoRequest request) {
-        Memo memo = memoRepository.save(new Memo(request.getTitle().strip(), request.getContent().strip()));
+        LocalDateTime now = TimeUtil.now();
+        Memo memo = new Memo();
+        memo.setTitle(request.getTitle().strip());
+        memo.setContent(request.getContent().strip());
+        memo.setCreatedAt(now);
+        memo.setUpdatedAt(now);
+
+        memoRepository.save(memo);
         log.info("메모 저장 - memoId: {}", memo.getMemoId());
         memoSummaryService.requestSummary(memo);
         return MemoResponse.from(memo);
@@ -94,10 +104,20 @@ public class MemoService {
     @Transactional
     public MemoResponse update(Long memoId, MemoRequest request) {
         Memo memo = findMemo(memoId);
-        if (memo.update(request.getTitle().strip(), request.getContent().strip())) {
-            log.info("메모 수정 - memoId: {}, revision: {}", memoId, memo.getRevision());
-            memoSummaryService.requestSummary(memo);
+        String title = request.getTitle().strip();
+        String content = request.getContent().strip();
+        if (memo.getTitle().equals(title) && memo.getContent().equals(content)) {
+            return MemoResponse.from(memo);
         }
+
+        memo.setTitle(title);
+        memo.setContent(content);
+        memo.setUpdatedAt(TimeUtil.now());
+        memo.setRevision(memo.getRevision() + 1);
+        log.info("메모 수정 - memoId: {}, revision: {}", memoId, memo.getRevision());
+
+        memoSummaryService.clearSummary(memo);
+        memoSummaryService.requestSummary(memo);
         return MemoResponse.from(memo);
     }
 
