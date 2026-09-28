@@ -50,7 +50,17 @@
 
 ### 3) LLM 설정 (로컬 IP 입력)
 + 런타임(Ollama / LM Studio), 서버 IP, 포트, API Key(선택)를 입력하고 **연결 테스트**로 서버의 모델 목록을 불러와 선택합니다.
-+ 서버가 입력한 주소로 직접 요청하므로 **루프백·사설망·Tailscale 대역의 IPv4 만** 허용합니다. (공인 IP, 클라우드 메타데이터 IP, 호스트명 거부)
++ 서버가 입력한 주소로 직접 요청하므로 **IP 숫자 주소만, 사설망·Tailscale 대역만** 허용합니다. 거부 사유에 맞는 안내 문구를 보여줍니다.
+
+| 입력 | 결과 |
+|---|---|
+| `10.x` · `172.16~31.x` · `192.168.x` · Tailscale `100.64~127.x` · IPv6 ULA `fc00::/7` | ✅ 허용 |
+| `localhost` · `*.localhost` · `host.docker.internal` · `127.x` · `0.0.0.0` · `::1` | ❌ 루프백 — 같은 PC 여도 사설 IP 입력 |
+| `169.254.x`(클라우드 메타데이터) · 멀티캐스트 · 예약·문서용 대역 · `fe80::` | ❌ 차단 대역 |
+| 공인 IP · 도메인 · 비표준 표기(`127.1`, `2130706433`, `010.0.0.1`) · DB 서버 주소 | ❌ 거부 |
+
++ IPv6 안에 IPv4 가 들어간 주소(`::ffff:127.0.0.1`, 6to4)는 안쪽 IPv4 기준으로 판단하고, 저장할 때와 **호출 직전 모두** 검사합니다.
++ 연결 테스트는 소요 시간과 모델 목록을 보여주며, 임베딩 등 채팅에 쓸 수 없는 모델은 목록에서 뺍니다.
 + 설정을 저장하면 그동안 요약에 실패했던 메모를 자동으로 다시 요약합니다. 설정 전에는 헤더와 목록에 안내가 표시됩니다.
 
 ### 4) 메모 / 요약 조회
@@ -229,7 +239,7 @@ erDiagram
 |---|---|---|
 | setting_id | BIGINT | PK (단일 행, 항상 1) |
 | provider | VARCHAR(20) | `OLLAMA` / `LMSTUDIO` (CHECK 제약) |
-| host | VARCHAR(15) | 로컬 전용 IPv4 (루프백·사설망·Tailscale 대역) |
+| host | VARCHAR(45) | 로컬 전용 IP (사설망·Tailscale 대역, IPv6 포함) |
 | port | INTEGER | 포트 (1~65535, CHECK 제약) |
 | model | VARCHAR(100) | 요약에 사용할 모델명 |
 | api_key | VARCHAR(200) | 인증 토큰 (선택, 화면·API 응답에 노출하지 않음) |
@@ -237,7 +247,7 @@ erDiagram
 
 + 요약 결과가 반영될 때 기존 할 일은 모두 지우고 새 목록으로 교체합니다(`orphanRemoval`).
 + 목록 최신순 정렬(`created_at DESC, memo_id DESC`)과 미완료 요약 조회(`summary_status`)에 인덱스를 사용합니다.
-+ 운영 환경은 `ddl-auto: validate` 이므로 최초 배포 전에 [`db/schema.sql`](src/main/resources/db/schema.sql) 로 테이블을 생성합니다.
++ 운영 환경은 `ddl-auto: validate` 이므로 최초 배포 전에 [`db/schema.sql`](src/main/resources/db/schema.sql) 로 테이블을 생성합니다. 이전 버전 DB 는 같은 스크립트를 다시 실행하면 `host` 가 `VARCHAR(45)` 로 확장됩니다.
 
 ## 🔒 보안
 
@@ -246,8 +256,9 @@ erDiagram
 | XSS | 모든 출력은 Thymeleaf `th:text`(자동 이스케이프), JS 는 `textContent` 사용. CSP 로 인라인·외부 스크립트 실행 차단 |
 | SQL Injection | Spring Data 파라미터 바인딩만 사용(문자열로 SQL 조립 없음), 검색 키워드의 `\` `%` `_` 이스케이프 |
 | CSRF | Spring Security 가 모든 변경 요청(POST/PUT/DELETE)에 CSRF 토큰 검증. 폼은 자동 삽입, JS 는 `X-CSRF-TOKEN` 헤더 |
-| SSRF | LLM 서버 IP 를 루프백·사설망·Tailscale 대역 IPv4 로 제한, 호스트명(DNS rebinding)·`169.254.169.254` 거부, 리다이렉트 미추적 |
-| 정보 노출 | LLM 오류는 JSON `error`/`message` 필드만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
+| SSRF | LLM 서버 주소를 사설망·Tailscale 대역 IP 로 제한(`LlmHostGuard`) — localhost·루프백·`169.254.x`·공인 IP·도메인(DNS rebinding)·DB 주소 거부, 저장 시·호출 직전 재검사, 리다이렉트 미추적, 프록시 미사용 |
+| 자원 고갈 | LLM 응답 본문 1MB 제한, 전체 제한 시간(요약 120초·모델 목록 15초)으로 조금씩 보내며 버티는 서버도 차단 |
+| 정보 노출 | LLM 서버의 오류 응답 본문은 노출하지 않고 상태 코드별 안내(401·403·400·404·429·3xx)만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
 | 클릭재킹 · MIME 스니핑 | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` |
 | 세션 | 쿠키로만 추적(URL 에 세션 ID 미노출), `HttpOnly`, `SameSite=Lax` |
 
@@ -283,8 +294,8 @@ erDiagram
     │   │   ├── config/                      # AsyncConfig(LLM 실행기), SecurityConfig(CSRF·보안 헤더)
     │   │   ├── exception/                   # NotFoundException
     │   │   ├── handler/                     # Api/GlobalExceptionHandler, SecurityAccessDeniedHandler(403)
-    │   │   ├── util/                        # LocalNetworkUtil(로컬 IP), PageRangeUtil, SummaryStatusUtil, TimeUtil
-    │   │   └── validation/                  # @LocalIp 검증 어노테이션·검증기
+    │   │   ├── util/                        # IpAddressUtil(IP 해석·분류), PageRangeUtil, SummaryStatusUtil, TimeUtil
+    │   │   └── validation/                  # @LocalIp 검증 어노테이션·검증기(LlmHostGuard 사용)
     │   ├── 🎮 controller/
     │   │   ├── MemoPageController.java      # 메모 화면 (작성·목록·상세·수정·삭제·요약 패널)
     │   │   ├── MemoApiController.java       # 메모 REST API (/api/memos)
@@ -294,18 +305,19 @@ erDiagram
     │   ├── 🧩 dto/                          # 요청·응답 DTO, 목록 projection(MemoListRow, MemoRevision)
     │   ├── 📣 event/                        # MemoSummaryRequestedEvent, MemoSummaryEventListener
     │   ├── 🤖 llm/
-    │   │   ├── client/                      # LlmClient(인터페이스), AbstractLlmClient(공통 흐름·오류 변환), LlmClientFactory
+    │   │   ├── client/                      # LlmClient(인터페이스), AbstractLlmClient(공통 흐름·크기/시간 제한·오류 변환), LlmClientFactory
+│   │   ├── guard/                       # LlmHostGuard — LLM 서버 주소 검사(SSRF 방지)
     │   │   ├── provider/
     │   │   │   ├── ollama/                  # OllamaLlmClient, 요청/응답(OllamaChatRequest, OllamaTagsResponse …)
     │   │   │   └── lmstudio/                # LmStudioLlmClient, 요청/응답(LmStudioChatRequest, LmStudioModelsResponse …)
-    │   │   ├── config/                      # LlmConfig, LlmProperties(타임아웃·동시 실행 수)
+    │   │   ├── config/                      # LlmConfig, LlmProperties(타임아웃·응답 크기·동시 실행 수)
     │   │   ├── prompt/                      # SummaryPrompt — 프롬프트, 응답 JSON 스키마
     │   │   ├── parser/                      # SummaryResultParser — LLM 응답 JSON 추출·정리
     │   │   ├── dto/                         # SummaryResult, ChatMessage, LlmConnection
     │   │   └── exception/                   # LlmException
     │   ├── 🧾 model/
     │   │   ├── Memo.java, MemoTodo.java, LlmSetting.java   # JPA 엔티티 (데이터만 보관)
-    │   │   └── enums/                       # SummaryStatus, LlmProvider
+    │   │   └── enums/                       # SummaryStatus, LlmProvider, IpCategory
     │   ├── 💾 repository/                   # MemoRepository, LlmSettingRepository
     │   └── 🔄 service/
     │       ├── MemoService.java             # 메모 CRUD, 검색, 요약 요청
@@ -324,11 +336,11 @@ erDiagram
     │       ├── css/common/, css/pages/      # 디자인 토큰·공통 / 화면별 style
     │       └── js/                          # common, theme-init, memo-form, memo-detail(요약 폴링), settings
     └── test/java/io/dev/coding_test/
-        ├── common/                          # 보안 설정(CSRF·헤더), 로컬 IP 판단 테스트
+        ├── common/                          # 보안 설정(CSRF·헤더), IP 해석·분류 테스트
         ├── controller/                      # 화면·API MockMvc 테스트
         ├── service/                         # 메모 CRUD, 비동기 요약·경합, LLM 설정 테스트
         ├── repository/                      # 경로별 SQL 수 검증
-        ├── llm/                             # Ollama/LM Studio 요청 형식, 파서, 팩토리 테스트
+        ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소 검사, 파서, 팩토리(제한 시간) 테스트
         └── support/                         # FakeLlmClient, FakeLlmClientFactory, CsrfMockMvcCustomizer
 ```
 
@@ -348,7 +360,7 @@ erDiagram
 | `POST` | `/api/memos/{id}/summary` | 재요약 요청 (202) |
 | `GET` | `/api/settings/llm` | LLM 접속 설정 조회 (API Key 값 제외) |
 | `PUT` | `/api/settings/llm` | LLM 접속 설정 저장 (실패한 요약 자동 재요청) |
-| `POST` | `/api/settings/llm/models` | 연결 테스트 — 모델 목록 조회 (연결 실패 시 502) |
+| `POST` | `/api/settings/llm/test` | 연결 테스트 — `{ok, latencyMs, models, message}` (연결 실패도 200 + `ok=false`) |
 
 ## 🌿 브랜치 전략
 
@@ -387,7 +399,7 @@ POSTGRESQL_PASSWORD=비밀번호
 
 + 실행 후 상단 **LLM 설정**에서 로컬 LLM 서버를 연결합니다.
     1. 런타임 선택 — Ollama(기본 포트 11434) / LM Studio(기본 포트 1234)
-    2. 서버 IP 입력 — 같은 PC 면 `127.0.0.1`, Tailscale 이면 `tailscale ip -4` 로 확인한 `100.x.x.x`
+    2. 서버 IP 입력 — 같은 PC 여도 `127.0.0.1` 대신 그 PC 의 사설 IP(`192.168.x.x` 등), Tailscale 이면 `tailscale ip -4` 로 확인한 `100.x.x.x`
     3. **연결 테스트 · 모델 불러오기** → 모델 선택 → 저장
 + LM Studio 는 Developer 탭에서 서버를 시작하고 Server Settings 의 *Serve on Local Network* 를 켭니다. Ollama 를 다른 PC 에서 접속하려면 `OLLAMA_HOST=0.0.0.0` 으로 실행합니다.
 + LLM 서버가 꺼져 있어도 애플리케이션은 정상 기동되며, 해당 메모는 **요약 실패**로 표시되고 서버를 켠 뒤 **다시 시도**로 재요약할 수 있습니다.
