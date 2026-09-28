@@ -4,6 +4,7 @@ import io.dev.coding_test.llm.client.LlmClient;
 import io.dev.coding_test.llm.client.LlmClientFactory;
 import io.dev.coding_test.llm.config.LlmProperties;
 import io.dev.coding_test.llm.dto.LlmConnection;
+import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -24,8 +25,9 @@ public class FakeLlmClientFactory extends LlmClientFactory {
     private final FakeLlmClient fakeLlmClient;
     private final AtomicReference<LlmConnection> lastConnection = new AtomicReference<>();
 
-    public FakeLlmClientFactory(LlmProperties properties, SummaryResultParser parser, FakeLlmClient fakeLlmClient) {
-        super(properties, parser);
+    public FakeLlmClientFactory(LlmProperties properties, SummaryResultParser parser, LlmHostGuard llmHostGuard,
+                                FakeLlmClient fakeLlmClient) {
+        super(properties, parser, llmHostGuard);
         this.fakeLlmClient = fakeLlmClient;
     }
 
