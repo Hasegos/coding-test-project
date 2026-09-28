@@ -1,8 +1,8 @@
 package io.dev.coding_test.controller;
 
 import io.dev.coding_test.common.exception.NotFoundException;
-import io.dev.coding_test.dto.LlmModelsRequest;
-import io.dev.coding_test.dto.LlmModelsResponse;
+import io.dev.coding_test.dto.LlmConnectionTestRequest;
+import io.dev.coding_test.dto.LlmConnectionTestResponse;
 import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.dto.LlmSettingResponse;
 import io.dev.coding_test.service.LlmSettingService;
@@ -52,13 +52,13 @@ public class SettingApiController {
     }
 
     /**
-     * 입력한 접속 정보로 LLM 서버에 연결해 사용 가능한 모델 목록을 조회한다. (연결 테스트)
+     * 입력한 접속 정보로 LLM 서버에 연결해 사용할 수 있는 모델 목록을 조회한다. (연결 테스트)
      *
      * @param request 연결 테스트 요청
-     * @return 모델명 목록, 연결 실패 시 502
+     * @return 연결 테스트 결과 (연결 실패도 200 + {@code ok = false}), 입력값 검증 실패 시 400
      */
-    @PostMapping("/models")
-    public LlmModelsResponse models(@Valid @RequestBody LlmModelsRequest request) {
-        return new LlmModelsResponse(llmSettingService.listModels(request));
+    @PostMapping("/test")
+    public LlmConnectionTestResponse test(@Valid @RequestBody LlmConnectionTestRequest request) {
+        return llmSettingService.testConnection(request);
     }
 }
