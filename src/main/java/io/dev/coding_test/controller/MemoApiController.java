@@ -4,6 +4,7 @@ import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.dto.MemoSummaryResponse;
+import io.dev.coding_test.dto.MemoSummaryStatusResponse;
 import io.dev.coding_test.dto.PageResponse;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.service.MemoSummaryService;
@@ -97,7 +98,6 @@ public class MemoApiController {
 
     /**
      * 메모의 AI 요약 결과(상태, 요약문, 할 일 목록)를 조회한다.
-     * 화면은 상태가 PENDING/PROCESSING인 동안 이 API를 주기적으로 호출한다.
      *
      * @param memoId 메모 ID
      * @return 요약 결과, 메모가 없으면 404
@@ -105,6 +105,18 @@ public class MemoApiController {
     @GetMapping("/{memoId}/summary")
     public MemoSummaryResponse getSummary(@PathVariable Long memoId) {
         return memoSummaryService.getSummary(memoId);
+    }
+
+    /**
+     * 메모의 요약 상태만 조회한다.
+     * 화면은 요약이 끝날 때까지 이 경량 API를 주기적으로 호출하고, 상태가 바뀌면 요약 패널을 다시 불러온다.
+     *
+     * @param memoId 메모 ID
+     * @return 요약 상태, 메모가 없으면 404
+     */
+    @GetMapping("/{memoId}/summary/status")
+    public MemoSummaryStatusResponse getSummaryStatus(@PathVariable Long memoId) {
+        return memoSummaryService.getSummaryStatus(memoId);
     }
 
     /**
