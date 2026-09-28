@@ -11,10 +11,25 @@
     /* ===================== 공용 헬퍼 ===================== */
 
     /**
-     * JSON API 요청 헬퍼. 응답이 2xx가 아니면 서버 에러 메시지로 reject 한다.
+     * 페이지에 심어둔 CSRF 토큰 헤더를 반환한다. (Spring Security)
+     */
+    function csrfHeaders() {
+        const token = document.querySelector('meta[name="_csrf"]');
+        const header = document.querySelector('meta[name="_csrf_header"]');
+        if (!token || !header) return {};
+        const headers = {};
+        headers[header.content] = token.content;
+        return headers;
+    }
+
+    /**
+     * JSON API 요청 헬퍼. 변경 요청에는 CSRF 토큰을 붙이고, 응답이 2xx가 아니면 서버 에러 메시지로 reject 한다.
      */
     function requestJson(url, options) {
-        const opts = Object.assign({ headers: { 'Accept': 'application/json' } }, options || {});
+        const opts = Object.assign({}, options || {});
+        const method = (opts.method || 'GET').toUpperCase();
+        opts.headers = Object.assign({ 'Accept': 'application/json' },
+            method === 'GET' ? {} : csrfHeaders(), opts.headers || {});
         if (opts.body !== undefined && typeof opts.body !== 'string') {
             opts.headers['Content-Type'] = 'application/json';
             opts.body = JSON.stringify(opts.body);

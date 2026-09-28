@@ -7,10 +7,14 @@ import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.prompt.SummaryPrompt;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -100,13 +104,10 @@ public abstract class AbstractLlmClient implements LlmClient {
     private LlmException translate(RestClientException e) {
         String baseUrl = connection.baseUrl();
         if (e instanceof RestClientResponseException re) {
-            String body = re.getResponseBodyAsString().strip();
-            if (body.length() > MAX_ERROR_BODY_LENGTH) {
-                body = body.substring(0, MAX_ERROR_BODY_LENGTH) + "…";
-            }
-            log.warn("LLM 서버 오류 응답 - status: {}, body: {}", re.getStatusCode(), body);
+            String detail = errorDetail(re);
+            log.warn("LLM 서버 오류 응답 - status: {}, detail: {}", re.getStatusCode(), detail);
             return new LlmException("LLM 서버 오류 (HTTP " + re.getStatusCode().value() + ")"
-                    + (body.isEmpty() ? "" : ": " + body), e);
+                    + (detail.isEmpty() ? "" : ": " + detail), e);
         }
         if (e instanceof ResourceAccessException) {
             // 연결 타임아웃(HttpConnectTimeoutException)은 HttpTimeoutException의 하위 타입이므로 먼저 확인한다.
@@ -124,6 +125,32 @@ public abstract class AbstractLlmClient implements LlmClient {
         }
         log.warn("LLM 호출 실패 - baseUrl: {}", baseUrl, e);
         return new LlmException("LLM 호출 중 오류가 발생했어요. (" + e.getMostSpecificCause().getMessage() + ")", e);
+    }
+
+    /**
+     * 오류 응답에서 사용자에게 보여줄 원인 메시지만 꺼낸다.
+     * <p>
+     * JSON 응답의 {@code error}(문자열 또는 {@code error.message}) / {@code message} 필드만 사용하고,
+     * 그 외 응답 본문(HTML 등)은 노출하지 않는다. 연결 테스트로 사설망의 다른 서비스 응답 내용이 새어 나가는 것을 막기 위함이다.
+     * </p>
+     */
+    private static String errorDetail(RestClientResponseException e) {
+        MediaType contentType = e.getResponseHeaders() == null ? null : e.getResponseHeaders().getContentType();
+        if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
+            return "";
+        }
+        try {
+            JsonNode root = JsonMapper.shared().readTree(e.getResponseBodyAsString());
+            JsonNode error = root.path("error");
+            String detail = error.isString() ? error.asString()
+                    : error.path("message").isString() ? error.path("message").asString()
+                    : root.path("message").isString() ? root.path("message").asString()
+                    : "";
+            detail = detail.strip();
+            return detail.length() <= MAX_ERROR_BODY_LENGTH ? detail : detail.substring(0, MAX_ERROR_BODY_LENGTH) + "…";
+        } catch (JacksonException ignored) {
+            return "";
+        }
     }
 
     private static boolean hasCause(Throwable e, Class<? extends Throwable> type) {
