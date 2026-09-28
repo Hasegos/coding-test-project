@@ -32,7 +32,7 @@ public class LlmSetting {
     @Column(name = "provider", nullable = false, length = 20)
     private LlmProvider provider;
 
-    @Column(name = "host", nullable = false, length = 15)
+    @Column(name = "host", nullable = false, length = 45)
     private String host;
 
     @Column(name = "port", nullable = false)
