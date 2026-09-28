@@ -41,11 +41,16 @@
             <a class="memo-card card" th:href="@{/memos/{id}(id=${memo.memoId})}">
                 <div class="memo-card__head">
                     <h2 class="memo-card__title" th:text="${memo.title}">메모 제목</h2>
+                    <span class="badge" th:classappend="'badge--' + ${#strings.toLowerCase(memo.summaryStatus)}"
+                          th:text="${memo.summaryStatus.label}">요약 완료</span>
                 </div>
                 <p class="memo-card__preview" th:text="${memo.preview}">본문 미리보기</p>
                 <div class="memo-card__meta">
                     <time th:datetime="${memo.createdAt}"
                           th:text="${#temporals.format(memo.createdAt, 'yyyy.MM.dd HH:mm')}">2026.09.28 14:00</time>
+                    <span class="memo-card__todo" th:if="${memo.todoCount > 0}">
+                        할 일 <strong th:text="${memo.todoCount}">3</strong>
+                    </span>
                 </div>
             </a>
         </li>
