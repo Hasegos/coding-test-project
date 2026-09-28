@@ -4,9 +4,10 @@
 
 + **AI 메모 자동 정리 프로그램(AI Memo)** 은 회의나 학습 중 작성한 메모가 정리되지 않은 채 쌓이고, 매번 직접 요약하고 할 일을 추려내야 하는 번거로움을 줄이기 위한 **Spring Boot 웹 애플리케이션**입니다.
 + 메모를 저장하면 **자체 호스팅한 로컬 LLM(Ollama / LM Studio)** 이 자동으로 호출되어 메모를 **요약**하고 **할 일 목록**을 추출합니다.
++ **회원가입·로그인** 후 사용하며, 메모와 LLM 설정은 **회원별로 분리**됩니다. 다른 회원의 메모는 볼 수도 고칠 수도 없습니다.
 + 메모와 요약 결과는 **PostgreSQL** 에 저장되며, 웹 화면(Thymeleaf)과 REST API 양쪽에서 **작성/조회/수정/삭제(CRUD)** 를 처리할 수 있습니다.
 + 로컬 LLM 응답은 수 초~수십 초가 걸리므로 저장 요청은 즉시 응답하고, 요약은 트랜잭션 커밋 이후 **비동기**로 처리합니다. 화면은 요약 상태(대기 → 요약 중 → 완료/실패)를 자동으로 갱신합니다.
-+ LLM 서버 주소는 `.env` 가 아니라 **LLM 설정 화면**에서 입력합니다. **Tailscale** 로 연결된 자체 서버의 로컬 IP 를 입력하고 연결 테스트로 모델을 불러와 선택하며, Ollama 와 LM Studio 를 전환할 수 있습니다.
++ LLM 서버 주소는 `.env` 가 아니라 회원마다 **LLM 설정 화면**에서 입력합니다. **Tailscale** 로 연결된 자체 서버의 로컬 IP 를 입력하고 연결 테스트로 모델을 불러와 선택하며, Ollama 와 LM Studio 를 전환할 수 있습니다.
 
 ## 🤝 팀 소개
 
@@ -37,19 +38,26 @@
 
 ## ✨ 핵심 기능
 
-### 1) 메모 작성 / 저장
+### 1) 회원가입 / 로그인
++ 아이디(영문 소문자·숫자·`_` 4~20자)·비밀번호(영문+숫자 8~64자)·비밀번호 확인·닉네임(2~12자)으로 가입합니다.
++ 비밀번호는 **BCrypt 해시**로만 저장하고, 세션 기반 폼 로그인을 사용합니다. 로그인 후에는 처음 요청했던 화면으로 돌아갑니다.
++ 로그인하면 우측 상단에 **닉네임 메뉴**가 생기고, 그 안에서 다크/라이트 모드 전환과 로그아웃을 할 수 있습니다.
++ 메모·요약·LLM 설정은 모두 로그인한 회원 기준으로 처리되며, 요약은 **메모 작성자의 LLM 서버**로 실행됩니다.
+
+### 2) 메모 작성 / 저장
 + 제목(200자)·본문(20,000자) 입력, 필수값·길이 검증 실패 시 입력값을 유지한 채 필드별 에러 메시지 표시.
 + 저장 시 제목/본문 앞뒤 공백을 제거하고 작성일을 기록, PRG(Post-Redirect-Get) 로 새로고침 중복 저장 방지.
 + 글자 수 카운터, `Ctrl + Enter` 저장, 중복 제출 방지.
 
-### 2) 로컬 LLM 자동 요약 / 할 일 추출
+### 3) 로컬 LLM 자동 요약 / 할 일 추출
 + 메모 저장·내용 수정 시 로컬 LLM 을 자동 호출하여 **요약(3~5문장)** 과 **할 일 목록**을 추출합니다.
 + 두 런타임 모두 JSON 스키마 기반 구조화 출력(Ollama `format`, LM Studio `response_format`)으로 `{"summary", "todos"}` 형식을 강제합니다.
 + 모델이 설명 문장·코드 블록·`<think>` 블록을 섞어 답해도 JSON 부분만 추출하고, 할 일의 공백·중복을 정리합니다.
 + 연결 실패·응답 시간 초과·서버 오류를 원인을 알 수 있는 문장으로 저장하고, **다시 시도** 버튼으로 재요약할 수 있습니다.
 
-### 3) LLM 설정 (로컬 IP 입력)
+### 4) LLM 설정 (로컬 IP 입력)
 + 런타임(Ollama / LM Studio), 서버 IP, 포트, API Key(선택)를 입력하고 **연결 테스트**로 서버의 모델 목록을 불러와 선택합니다.
++ LLM 설정은 회원마다 따로 저장되고, API Key 는 **AES-256-GCM 으로 암호화**해 DB 에 저장합니다.
 + 서버가 입력한 주소로 직접 요청하므로 **IP 숫자 주소만, 사설망·Tailscale 대역만** 허용합니다. 거부 사유에 맞는 안내 문구를 보여줍니다.
 
 | 입력 | 결과 |
@@ -63,16 +71,16 @@
 + 연결 테스트는 소요 시간과 모델 목록을 보여주며, 임베딩 등 채팅에 쓸 수 없는 모델은 목록에서 뺍니다.
 + 설정을 저장하면 그동안 요약에 실패했던 메모를 자동으로 다시 요약합니다. 설정 전에는 헤더와 목록에 안내가 표시됩니다.
 
-### 4) 메모 / 요약 조회
+### 5) 메모 / 요약 조회
 + 최신순 카드 목록, 제목·본문 키워드 검색(대소문자 무시), 5개 단위 페이지네이션.
 + 목록 카드마다 요약 상태 배지(요약 대기 / 요약 중 / 요약 완료 / 요약 실패)와 할 일 개수 표시.
 + 상세 화면은 원문과 AI 요약 패널을 나란히 보여주며, 요약 중이면 상태를 확인해 완료 시 패널을 자동 갱신합니다.
 
-### 5) 메모 수정 / 삭제
+### 6) 메모 수정 / 삭제
 + 작성 폼을 재사용한 수정 화면, 제목/본문이 **실제로 바뀐 경우에만** 기존 요약을 비우고 재요약합니다.
 + 삭제 전 확인창, 메모 삭제 시 추출된 할 일도 함께 삭제됩니다.
 
-### 6) 요약 처리 규칙
+### 7) 요약 처리 규칙
 
 | 규칙 | 처리 |
 |---|---|
@@ -85,6 +93,23 @@
 | 서버 재시작 | 끝나지 않은(대기/요약 중) 요약을 기동 시 자동으로 다시 요청 |
 
 ## 🖼️ 화면 구성
+
+### 회원가입 / 로그인
+<img width="700" alt="회원가입" src="img/회원가입.png" />
+<img width="700" alt="로그인" src="img/로그인.png" />
+
+- 메인 담당자 : 손수호
+- 주요 개발 기능 : 아이디·비밀번호·비밀번호 확인·닉네임 필드별 검증, 가입 후 아이디가 채워진 로그인 화면으로 이동, 로그인 실패·로그아웃 안내
+
+---
+
+### 닉네임 메뉴
+<img width="700" alt="닉네임 메뉴" src="img/회원메뉴.png" />
+
+- 메인 담당자 : 손수호
+- 주요 개발 기능 : 우측 상단 닉네임 메뉴(다크/라이트 모드 전환·로그아웃), 바깥 클릭·Esc 로 닫기
+
+---
 
 ### 메모 목록
 <img width="700" alt="메모 목록" src="img/메모목록.png" />
@@ -130,6 +155,7 @@
 
 ## 🧱 계층 구조
 
++ 컨트롤러는 `@LoginMemberId` 로 로그인한 회원 ID 를 받아 서비스에 넘기고, 서비스·Repository 는 모든 조회에 작성자 조건을 겁니다.
 + 화면 컨트롤러와 API 컨트롤러는 같은 서비스를 공유하며, 컨트롤러는 Repository 나 LLM 을 직접 호출하지 않습니다.
 + 엔티티(model)는 데이터만 가지고, 값 변경 규칙(수정 여부 판단, revision 증가, 요약 상태 변경)은 모두 service 가 담당합니다.
 
@@ -138,11 +164,11 @@
 ```mermaid
 flowchart TB
     P["화면 · REST API 요청"]
-    C["<b>Controller</b><br/>MemoPageController<br/>MemoApiController<br/>SettingPageController<br/>SettingApiController"]
-    S["<b>Service</b><br/>MemoService<br/>MemoSummaryService<br/>LlmSettingService"]
-    R["<b>Repository</b><br/>MemoRepository<br/>LlmSettingRepository"]
+    C["<b>Controller</b><br/>AuthController<br/>MemoPageController<br/>MemoApiController<br/>SettingPageController<br/>SettingApiController"]
+    S["<b>Service</b><br/>MemberService<br/>MemoService<br/>MemoSummaryService<br/>LlmSettingService"]
+    R["<b>Repository</b><br/>MemberRepository<br/>MemoRepository<br/>LlmSettingRepository"]
     DB[("PostgreSQL")]
-    X["<b>common</b><br/>예외 처리<br/>CSRF · 보안 헤더<br/>입력 검증"]
+    X["<b>common</b><br/>세션 로그인 · CSRF · 보안 헤더<br/>예외 처리 · 입력 검증<br/>API Key 암호화"]
 
     P --> C --> S --> R --> DB
     X -.-> C
@@ -157,7 +183,7 @@ flowchart TB
     A["MemoService<br/>메모 저장 · 수정"] -->|"커밋 후 이벤트"| B["MemoSummaryEventListener"]
     B --> C["llmExecutor<br/>동시 실행 1 · 대기열 100"]
     C --> D["MemoSummaryService<br/>요약 실행 · 결과 반영"]
-    D -->|"접속 정보 조회"| E["LlmSettingService"]
+    D -->|"작성자의 접속 정보 조회"| E["LlmSettingService"]
     D --> F["LlmClientFactory"]
     F --> G["OllamaLlmClient<br/>/api/chat"]
     F --> H["LmStudioLlmClient<br/>/v1/chat/completions"]
@@ -187,9 +213,19 @@ sequenceDiagram
 
 ```mermaid
 erDiagram
+    MEMBER ||--o{ MEMO : "작성한다"
+    MEMBER ||--o| LLM_SETTING : "LLM 서버를 설정한다"
     MEMO ||--o{ MEMO_TODO : "할 일을 가진다"
+    MEMBER {
+        bigint member_id PK
+        varchar username UK
+        varchar password "BCrypt 해시"
+        varchar nickname
+        timestamp created_at
+    }
     MEMO {
         bigint memo_id PK
+        bigint member_id FK
         varchar title
         text content
         bigint revision "내용 수정 시 증가"
@@ -207,12 +243,31 @@ erDiagram
         varchar content
         int sort_order
     }
+    LLM_SETTING {
+        bigint member_id PK, FK
+        varchar provider
+        varchar host
+        int port
+        varchar model
+        varchar api_key "AES-256-GCM 암호문"
+        timestamp updated_at
+    }
 ```
+
+### 👤 Member (회원)
+| 필드명 | 타입 | 설명 |
+|---|---|---|
+| member_id | BIGSERIAL | PK |
+| username | VARCHAR(20) | 로그인 아이디 (UNIQUE, 영문 소문자·숫자·`_`) |
+| password | VARCHAR(100) | BCrypt 해시 (`{bcrypt}$2a$10$…`) |
+| nickname | VARCHAR(20) | 닉네임 (헤더 표시) |
+| created_at | TIMESTAMP | 가입 시각 |
 
 ### 📝 Memo (메모)
 | 필드명 | 타입 | 설명 |
 |---|---|---|
 | memo_id | BIGSERIAL | PK |
+| member_id | BIGINT | 작성자 FK (ON DELETE CASCADE) — 작성자만 조회·수정·삭제 |
 | title | VARCHAR(200) | 제목 (필수) |
 | content | TEXT | 본문 (필수, 20,000자 이하) |
 | revision | BIGINT | 제목/본문이 바뀔 때마다 증가 (오래된 요약 결과 폐기 기준) |
@@ -233,26 +288,30 @@ erDiagram
 
 ### ⚙️ LlmSetting (LLM 접속 설정)
 
-+ 다른 테이블과 관계가 없는 단일 행 설정 테이블이라 ERD 에는 표시하지 않았습니다.
++ 회원당 1행이며, 회원 ID 를 그대로 기본키로 씁니다.
 
 | 필드명 | 타입 | 설명 |
 |---|---|---|
-| setting_id | BIGINT | PK (단일 행, 항상 1) |
+| member_id | BIGINT | PK, 회원 FK (ON DELETE CASCADE) |
 | provider | VARCHAR(20) | `OLLAMA` / `LMSTUDIO` (CHECK 제약) |
 | host | VARCHAR(45) | 로컬 전용 IP (사설망·Tailscale 대역, IPv6 포함) |
 | port | INTEGER | 포트 (1~65535, CHECK 제약) |
 | model | VARCHAR(100) | 요약에 사용할 모델명 |
-| api_key | VARCHAR(200) | 인증 토큰 (선택, 화면·API 응답에 노출하지 않음) |
+| api_key | VARCHAR(400) | 인증 토큰 (선택) — `v1:` + AES-256-GCM 암호문으로 저장, 화면·API 응답·로그에 노출하지 않음 |
 | updated_at | TIMESTAMP | 마지막 저장 시각 |
 
 + 요약 결과가 반영될 때 기존 할 일은 모두 지우고 새 목록으로 교체합니다(`orphanRemoval`).
-+ 목록 최신순 정렬(`created_at DESC, memo_id DESC`)과 미완료 요약 조회(`summary_status`)에 인덱스를 사용합니다.
-+ 운영 환경은 `ddl-auto: validate` 이므로 최초 배포 전에 [`db/schema.sql`](src/main/resources/db/schema.sql) 로 테이블을 생성합니다. 이전 버전 DB 는 같은 스크립트를 다시 실행하면 `host` 가 `VARCHAR(45)` 로 확장됩니다.
++ 회원별 목록 최신순 정렬(`member_id, created_at DESC, memo_id DESC`)과 미완료 요약 조회(`summary_status`)에 인덱스를 사용합니다.
++ 운영 환경은 `ddl-auto: validate` 이므로 최초 배포 전에 [`db/schema.sql`](src/main/resources/db/schema.sql) 로 테이블을 생성합니다. 회원 기능 이전 버전 DB 는 `DROP TABLE IF EXISTS memo_todo, memo, llm_setting;` 후 스크립트를 다시 실행합니다. (구조가 바뀜)
 
 ## 🔒 보안
 
 | 위협 | 대응 |
 |---|---|
+| 인증 | 세션 기반 폼 로그인. 로그인·회원가입·정적 리소스 외 모든 요청은 로그인 필요 (화면은 로그인 화면으로, API 는 401 JSON) |
+| 비밀번호 유출 | BCrypt 해시(`{bcrypt}` 위임 인코더)로만 저장, 세션의 로그인 정보에서도 비밀번호 해시 제거, 로그인 실패 시 아이디·비밀번호 중 무엇이 틀렸는지 구분하지 않음 |
+| 다른 회원 데이터 접근 (IDOR) | 모든 메모·요약·LLM 설정 조회에 작성자 조건, 다른 회원의 메모는 존재 여부도 드러나지 않도록 404 |
+| API Key 유출 | AES-256-GCM 으로 암호화해 저장(값마다 무작위 IV, 변조 검출). 키는 환경변수 `API_KEY_ENCRYPTION_KEY` 로 DB 와 분리 보관, 키가 없으면 기동 중단 |
 | XSS | 모든 출력은 Thymeleaf `th:text`(자동 이스케이프), JS 는 `textContent` 사용. CSP 로 인라인·외부 스크립트 실행 차단 |
 | SQL Injection | Spring Data 파라미터 바인딩만 사용(문자열로 SQL 조립 없음), 검색 키워드의 `\` `%` `_` 이스케이프 |
 | CSRF | Spring Security 가 모든 변경 요청(POST/PUT/DELETE)에 CSRF 토큰 검증. 폼은 자동 삽입, JS 는 `X-CSRF-TOKEN` 헤더 |
@@ -260,9 +319,10 @@ erDiagram
 | 자원 고갈 | LLM 응답 본문 1MB 제한, 전체 제한 시간(요약 120초·모델 목록 15초)으로 조금씩 보내며 버티는 서버도 차단 |
 | 정보 노출 | LLM 서버의 오류 응답 본문은 노출하지 않고 상태 코드별 안내(401·403·400·404·429·3xx)만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
 | 클릭재킹 · MIME 스니핑 | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` |
-| 세션 | 쿠키로만 추적(URL 에 세션 ID 미노출), `HttpOnly`, `SameSite=Lax` |
+| 세션 | 로그인 시 세션 ID 재발급(세션 고정 방지), 로그아웃은 POST(CSRF 토큰 필요)로만 처리, 쿠키로만 추적(URL 에 세션 ID 미노출), `HttpOnly`, `SameSite=Lax` |
 
-+ 로그인 기능은 없으므로 Tailscale 등 신뢰할 수 있는 네트워크 안에서 서비스하는 것을 전제로 합니다.
++ API Key 는 LLM 서버에 원문으로 보내야 하므로 해싱(복원 불가)이 아니라 암호화(복원 가능)를 사용합니다. 비밀번호는 원문이 필요 없으므로 해싱합니다.
++ `API_KEY_ENCRYPTION_KEY` 를 바꾸면 기존에 저장한 API Key 는 복호화할 수 없어 "저장된 키 없음"으로 표시되며, 다시 입력하면 새 키로 암호화됩니다.
 
 ## ⚡ 성능
 
@@ -290,13 +350,16 @@ erDiagram
     ├── main/java/io/dev/coding_test/
     │   ├── 🚀 CodingTestApplication.java    # 실행 진입점
     │   ├── ⚙️ common/
-    │   │   ├── advice/                      # LlmSettingModelAdvice — 화면에 LLM 설정 여부 전달
-    │   │   ├── config/                      # AsyncConfig(LLM 실행기), SecurityConfig(CSRF·보안 헤더)
-    │   │   ├── exception/                   # NotFoundException
-    │   │   ├── handler/                     # Api/GlobalExceptionHandler, SecurityAccessDeniedHandler(403)
+    │   │   ├── advice/                      # LoginMemberModelAdvice(닉네임), LlmSettingModelAdvice(LLM 설정 여부)
+    │   │   ├── config/                      # AsyncConfig(LLM 실행기), SecurityConfig(폼 로그인·CSRF·보안 헤더·BCrypt)
+    │   │   ├── crypto/                      # SecretCipher(AES-256-GCM), EncryptedStringConverter(JPA 컬럼 암호화)
+    │   │   ├── exception/                   # NotFoundException, DuplicateUsernameException
+    │   │   ├── handler/                     # Api/GlobalExceptionHandler, SecurityAccessDeniedHandler(403), SecurityAuthenticationEntryPoint(401)
+    │   │   ├── security/                    # LoginMember(principal), LoginMemberDetailsService, @LoginMemberId
     │   │   ├── util/                        # IpAddressUtil(IP 해석·분류), PageRangeUtil, SummaryStatusUtil, TimeUtil
     │   │   └── validation/                  # @LocalIp 검증 어노테이션·검증기(LlmHostGuard 사용)
     │   ├── 🎮 controller/
+    │   │   ├── AuthController.java          # 로그인·회원가입 화면, 회원가입 처리
     │   │   ├── MemoPageController.java      # 메모 화면 (작성·목록·상세·수정·삭제·요약 패널)
     │   │   ├── MemoApiController.java       # 메모 REST API (/api/memos)
     │   │   ├── SettingPageController.java   # LLM 설정 화면 (/settings/llm)
@@ -316,10 +379,11 @@ erDiagram
     │   │   ├── dto/                         # SummaryResult, ChatMessage, LlmConnection
     │   │   └── exception/                   # LlmException
     │   ├── 🧾 model/
-    │   │   ├── Memo.java, MemoTodo.java, LlmSetting.java   # JPA 엔티티 (데이터만 보관)
+    │   │   ├── Member.java, Memo.java, MemoTodo.java, LlmSetting.java   # JPA 엔티티 (데이터만 보관)
     │   │   └── enums/                       # SummaryStatus, LlmProvider, IpCategory
-    │   ├── 💾 repository/                   # MemoRepository, LlmSettingRepository
+    │   ├── 💾 repository/                   # MemberRepository, MemoRepository, LlmSettingRepository
     │   └── 🔄 service/
+    │       ├── MemberService.java           # 회원가입 (비밀번호 확인·아이디 중복 검사, BCrypt 해시)
     │       ├── MemoService.java             # 메모 CRUD, 검색, 요약 요청
     │       ├── MemoSummaryService.java      # 비동기 요약 실행, 결과 반영, 재요약
     │       └── LlmSettingService.java       # LLM 접속 설정 저장, 연결 테스트
@@ -328,7 +392,8 @@ erDiagram
     │   ├── application-dev.yml / -prod.yml  # ddl-auto update / validate
     │   ├── db/schema.sql                    # PostgreSQL 스키마
     │   ├── templates/
-    │   │   ├── fragments/                   # head, header, footer, llm-notice
+    │   │   ├── auth/                        # login, signup
+    │   │   ├── fragments/                   # head, header(닉네임 메뉴), footer, llm-notice
     │   │   ├── memo/                        # list, form, detail, summary(요약 패널 fragment)
     │   │   ├── settings/llm.html            # LLM 설정 화면
     │   │   └── error/error.html
@@ -336,20 +401,24 @@ erDiagram
     │       ├── css/common/, css/pages/      # 디자인 토큰·공통 / 화면별 style
     │       └── js/                          # common, theme-init, memo-form, memo-detail(요약 폴링), settings
     └── test/java/io/dev/coding_test/
-        ├── common/                          # 보안 설정(CSRF·헤더), IP 해석·분류 테스트
-        ├── controller/                      # 화면·API MockMvc 테스트
+        ├── common/                          # 보안 설정(CSRF·헤더), API Key 암호화, IP 해석·분류 테스트
+        ├── controller/                      # 화면·API MockMvc, 회원가입·로그인, 회원 간 데이터 분리 테스트
         ├── service/                         # 메모 CRUD, 비동기 요약·경합, LLM 설정 테스트
         ├── repository/                      # 경로별 SQL 수 검증
         ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소 검사, 파서, 팩토리(제한 시간) 테스트
-        └── support/                         # FakeLlmClient, FakeLlmClientFactory, CsrfMockMvcCustomizer
+        └── support/                         # FakeLlmClient(Factory), TestMembers·TestLoginContext(테스트 로그인), TestMockMvcCustomizer
 ```
 
 ## 🔌 API
 
-변경 요청(POST/PUT/DELETE)은 CSRF 토큰(`X-CSRF-TOKEN` 헤더)이 필요합니다. 토큰은 화면의 `<meta name="_csrf">` 에 있습니다.
++ 모든 API 는 로그인한 세션이 필요하며(없으면 401), 로그인한 회원의 데이터만 다룹니다. 다른 회원의 메모는 404 입니다.
++ 변경 요청(POST/PUT/DELETE)은 CSRF 토큰(`X-CSRF-TOKEN` 헤더)이 필요합니다. 토큰은 화면의 `<meta name="_csrf">` 에 있습니다.
 
 | Method | URL | 설명 |
 |---|---|---|
+| `POST` | `/signup` | 회원가입 (폼) |
+| `POST` | `/login` | 로그인 (폼, `username`·`password`) |
+| `POST` | `/logout` | 로그아웃 |
 | `POST` | `/api/memos` | 메모 작성 (201, 요약 자동 시작) |
 | `GET` | `/api/memos?keyword=&page=&size=` | 메모 목록 (최신순, 검색) |
 | `GET` | `/api/memos/{id}` | 메모 단건 + 요약 결과 |
@@ -387,7 +456,7 @@ psql -U postgres -d ai_memo -f src/main/resources/db/schema.sql
 ./mvnw verify
 ```
 
-+ 실행 전 DB 접속 정보만 환경변수로 설정합니다. (IntelliJ: Run Configuration → Environment variables 에 `.env` 파일 지정)
++ 실행 전 DB 접속 정보와 API Key 암호화 키를 환경변수로 설정합니다. (IntelliJ: Run Configuration → Environment variables 에 `.env` 파일 지정)
 
 ```properties
 POSTGRESQL_HOST=localhost
@@ -395,9 +464,13 @@ POSTGRESQL_PORT=5432
 POSTGRESQL_DATABASE=ai_memo
 POSTGRESQL_USERNAME=postgres
 POSTGRESQL_PASSWORD=비밀번호
+# LLM API Key 암호화 키 (32바이트 Base64) — openssl rand -base64 32 로 생성, 없으면 기동하지 않음
+API_KEY_ENCRYPTION_KEY=생성한_키
 ```
 
-+ 실행 후 상단 **LLM 설정**에서 로컬 LLM 서버를 연결합니다.
++ 암호화 키는 DB 와 따로 보관합니다. 키를 잃어버리거나 바꾸면 회원들이 저장한 API Key 를 다시 입력해야 합니다.
+
++ 실행 후 **회원가입 → 로그인** 하고, 상단 **LLM 설정**에서 내 로컬 LLM 서버를 연결합니다.
     1. 런타임 선택 — Ollama(기본 포트 11434) / LM Studio(기본 포트 1234)
     2. 서버 IP 입력 — 같은 PC 여도 `127.0.0.1` 대신 그 PC 의 사설 IP(`192.168.x.x` 등), Tailscale 이면 `tailscale ip -4` 로 확인한 `100.x.x.x`
     3. **연결 테스트 · 모델 불러오기** → 모델 선택 → 저장
