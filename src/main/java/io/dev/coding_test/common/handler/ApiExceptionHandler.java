@@ -2,6 +2,7 @@ package io.dev.coding_test.common.handler;
 
 import io.dev.coding_test.common.exception.NotFoundException;
 import io.dev.coding_test.dto.ErrorResponse;
+import io.dev.coding_test.llm.exception.LlmException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
@@ -41,6 +42,23 @@ public class ApiExceptionHandler {
         log.warn("[404] API NotFoundException 발생: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(404, e.getMessage()));
+    }
+
+    /**
+     * LLM 서버 연결 실패·응답 오류를 처리한다. (502)
+     * <p>
+     * 연결 테스트처럼 요청 처리 중 LLM 서버를 직접 호출할 때 발생하며,
+     * 메시지는 사용자가 원인을 알 수 있는 문장으로 만들어져 있다.
+     * </p>
+     *
+     * @param e 발생한 LlmException
+     * @return 502 에러 응답
+     */
+    @ExceptionHandler(LlmException.class)
+    public ResponseEntity<ErrorResponse> handleLlm(LlmException e) {
+        log.warn("[502] LLM 호출 실패: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ErrorResponse.of(502, e.getMessage()));
     }
 
     /**
