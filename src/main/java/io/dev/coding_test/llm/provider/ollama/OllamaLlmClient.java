@@ -7,11 +7,11 @@ import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.prompt.SummaryPrompt;
-import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Ollama 클라이언트 (요약 {@code POST /api/chat}, 모델 목록 {@code GET /api/tags}).
@@ -21,9 +21,9 @@ import java.util.Map;
  */
 public class OllamaLlmClient extends AbstractLlmClient {
 
-    public OllamaLlmClient(RestClient restClient, LlmConnection connection,
+    public OllamaLlmClient(RestClient chatClient, RestClient modelsClient, LlmConnection connection,
                            LlmProperties properties, SummaryResultParser parser) {
-        super(restClient, connection, properties, parser);
+        super(chatClient, modelsClient, connection, properties, parser);
     }
 
     @Override
@@ -36,29 +36,21 @@ public class OllamaLlmClient extends AbstractLlmClient {
                 Map.of("temperature", properties.temperature())
         );
 
-        OllamaChatResponse response = restClient.post()
-                .uri("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(OllamaChatResponse.class);
+        OllamaChatResponse response = postJson("/api/chat", request, OllamaChatResponse.class);
 
-        if (response == null || response.message() == null) {
+        if (response.message() == null) {
             throw new LlmException("Ollama 응답 형식이 올바르지 않아요.");
         }
         return response.message().content();
     }
 
     @Override
-    protected List<String> requestModels() {
-        OllamaTagsResponse response = restClient.get()
-                .uri("/api/tags")
-                .retrieve()
-                .body(OllamaTagsResponse.class);
-
-        if (response == null || response.models() == null) {
-            throw new LlmException("Ollama 모델 목록 응답 형식이 올바르지 않아요.");
-        }
-        return response.models().stream().map(OllamaTagsResponse.Model::name).toList();
+    protected Optional<List<String>> requestModels() {
+        return getJson("/api/tags", OllamaTagsResponse.class).map(response -> {
+            if (response.models() == null) {
+                throw new LlmException("Ollama 모델 목록 응답 형식이 올바르지 않아요.");
+            }
+            return response.models().stream().map(OllamaTagsResponse.Model::name).toList();
+        });
     }
 }
