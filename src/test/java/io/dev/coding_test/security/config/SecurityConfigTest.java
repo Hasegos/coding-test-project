@@ -1,7 +1,7 @@
-package io.dev.coding_test.common.config;
+package io.dev.coding_test.security.config;
 
-import io.dev.coding_test.common.handler.SecurityAccessDeniedHandler;
-import io.dev.coding_test.common.security.CustomUserPrincipal;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
+import io.dev.coding_test.security.handler.SecurityAccessDeniedHandler;
 import io.dev.coding_test.support.TestUsers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
