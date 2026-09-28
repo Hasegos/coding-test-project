@@ -1,0 +1,12 @@
+spring:
+  config:
+    activate:
+      on-profile: prod # 운영 환경 (Tailscale 자체 서버)
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  thymeleaf:
+    cache: true
