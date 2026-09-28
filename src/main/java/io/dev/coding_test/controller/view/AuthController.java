@@ -1,10 +1,14 @@
 package io.dev.coding_test.controller.view;
 
 import io.dev.coding_test.common.exception.DuplicateUsernameException;
+import io.dev.coding_test.common.validation.AuthPattern;
 import io.dev.coding_test.dto.auth.SignupRequest;
 import io.dev.coding_test.security.config.SecurityConfig;
 import io.dev.coding_test.security.core.CustomUserPrincipal;
+import io.dev.coding_test.security.handler.CustomAuthFailureHandler;
 import io.dev.coding_test.service.UserService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,13 +34,37 @@ public class AuthController {
 
     /**
      * 로그인 화면을 렌더링한다. 이미 로그인했으면 메모 목록으로 보낸다.
+     * <p>
+     * 로그인 실패 시 {@link CustomAuthFailureHandler}가 세션에 남긴 안내 메시지와 입력했던 아이디를
+     * 한 번만 꺼내 보여주고 세션에서 지운다.
+     * </p>
      *
      * @param loginUser 로그인한 회원, 없으면 {@code null}
+     * @param request   HTTP 요청 (세션이 없으면 만들지 않음)
+     * @param model     뷰에 전달할 데이터 모델
      * @return 로그인 뷰 이름 또는 메모 목록 리다이렉트
      */
     @GetMapping(SecurityConfig.LOGIN_PATH)
-    public String loginForm(@AuthenticationPrincipal CustomUserPrincipal loginUser) {
-        return loginUser != null ? "redirect:/memos" : "auth/login";
+    public String loginForm(@AuthenticationPrincipal CustomUserPrincipal loginUser,
+                            HttpServletRequest request,
+                            Model model) {
+        if (loginUser != null) {
+            return "redirect:/memos";
+        }
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            moveToModel(session, CustomAuthFailureHandler.LOGIN_ERROR, model);
+            moveToModel(session, CustomAuthFailureHandler.LOGIN_USERNAME, model);
+        }
+        return "auth/login";
+    }
+
+    private static void moveToModel(HttpSession session, String name, Model model) {
+        Object value = session.getAttribute(name);
+        if (value != null) {
+            model.addAttribute(name, value);
+            session.removeAttribute(name);
+        }
     }
 
     /**
@@ -83,7 +111,8 @@ public class AuthController {
             return "auth/signup";
         }
         redirectAttributes.addFlashAttribute("toast", "가입이 완료됐어요. 로그인해주세요.");
-        redirectAttributes.addFlashAttribute("username", request.getUsername());
+        redirectAttributes.addFlashAttribute(CustomAuthFailureHandler.LOGIN_USERNAME,
+                AuthPattern.normalizeUsername(request.getUsername()));
         return "redirect:" + SecurityConfig.LOGIN_PATH;
     }
 }
