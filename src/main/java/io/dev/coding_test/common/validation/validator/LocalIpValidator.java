@@ -1,5 +1,6 @@
-package io.dev.coding_test.common.validation;
+package io.dev.coding_test.common.validation.validator;
 
+import io.dev.coding_test.common.validation.annotation.LocalIp;
 import io.dev.coding_test.llm.guard.LlmHostGuard;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
