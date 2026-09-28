@@ -6,6 +6,8 @@ import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.MemoSummaryResponse;
 import io.dev.coding_test.event.MemoSummaryRequestedEvent;
 import io.dev.coding_test.llm.client.LlmClient;
+import io.dev.coding_test.llm.client.LlmClientFactory;
+import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.Memo;
@@ -41,17 +43,23 @@ public class MemoSummaryService {
 
     public static final int MAX_ERROR_LENGTH = 500;
 
+    public static final String NOT_CONFIGURED_MESSAGE =
+            "LLM 서버가 설정되지 않았어요. 상단 'LLM 설정'에서 로컬 IP를 입력한 뒤 다시 시도해주세요.";
+
     private final MemoRepository memoRepository;
-    private final LlmClient llmClient;
+    private final LlmSettingService llmSettingService;
+    private final LlmClientFactory llmClientFactory;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate newTransaction;
 
     public MemoSummaryService(MemoRepository memoRepository,
-                              LlmClient llmClient,
+                              LlmSettingService llmSettingService,
+                              LlmClientFactory llmClientFactory,
                               ApplicationEventPublisher eventPublisher,
                               PlatformTransactionManager transactionManager) {
         this.memoRepository = memoRepository;
-        this.llmClient = llmClient;
+        this.llmSettingService = llmSettingService;
+        this.llmClientFactory = llmClientFactory;
         this.eventPublisher = eventPublisher;
         // 커밋 후(AFTER_COMMIT) 콜백에서도 항상 독립된 트랜잭션으로 반영되도록 REQUIRES_NEW 사용
         this.newTransaction = new TransactionTemplate(transactionManager);
@@ -100,6 +108,21 @@ public class MemoSummaryService {
     }
 
     /**
+     * 요약에 실패한 메모를 모두 다시 요약 요청한다. (LLM 설정을 저장한 직후 호출)
+     *
+     * @return 다시 요청한 메모 수
+     */
+    @Transactional
+    public int retryFailed() {
+        List<Memo> failed = memoRepository.findBySummaryStatus(SummaryStatus.FAILED);
+        failed.forEach(this::requestSummary);
+        if (!failed.isEmpty()) {
+            log.info("실패한 요약 재요청 - {}건", failed.size());
+        }
+        return failed.size();
+    }
+
+    /**
      * 로컬 LLM으로 메모를 요약하고 결과를 반영한다. (LLM 전용 실행기에서 호출)
      *
      * @param memoId   메모 ID
@@ -116,6 +139,14 @@ public class MemoSummaryService {
             return;
         }
 
+        Optional<LlmConnection> connection = llmSettingService.findConnection();
+        if (connection.isEmpty()) {
+            log.warn("요약 실패(LLM 미설정) - memoId: {}", memoId);
+            fail(memoId, revision, NOT_CONFIGURED_MESSAGE);
+            return;
+        }
+
+        LlmClient llmClient = llmClientFactory.getClient(connection.get());
         SummaryResult result;
         try {
             result = llmClient.summarize(snapshot.get().title(), snapshot.get().content());

@@ -1,6 +1,7 @@
 package io.dev.coding_test.llm.provider.ollama;
 
 import io.dev.coding_test.llm.config.LlmProperties;
+import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
@@ -16,6 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -25,8 +27,9 @@ class OllamaLlmClientTest {
 
     private static final String BASE_URL = "http://ollama.test";
 
-    private final LlmProperties properties =
-            new LlmProperties(LlmProvider.OLLAMA, BASE_URL, "qwen2.5:7b", "", 0.2, null, null, 1, 10);
+    private final LlmProperties properties = new LlmProperties(0.2, null, null, 1, 10);
+    private final LlmConnection connection =
+            new LlmConnection(LlmProvider.OLLAMA, "127.0.0.1", 11434, "qwen2.5:7b", null);
 
     private MockRestServiceServer server;
     private OllamaLlmClient client;
@@ -35,7 +38,7 @@ class OllamaLlmClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new OllamaLlmClient(builder.build(), properties,
+        client = new OllamaLlmClient(builder.build(), connection, properties,
                 new SummaryResultParser(JsonMapper.builder().build()));
     }
 
@@ -93,5 +96,27 @@ class OllamaLlmClientTest {
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
                 .isInstanceOf(LlmException.class)
                 .hasMessageContaining("Ollama 응답 형식");
+    }
+
+    @Test
+    void 모델_목록을_조회하고_중복_제거_후_정렬한다() {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"models": [{"name": "qwen2.5:7b", "size": 4683087332}, {"name": "llama3.2:3b"}, {"name": "qwen2.5:7b"}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.listModels()).containsExactly("llama3.2:3b", "qwen2.5:7b");
+        server.verify();
+    }
+
+    @Test
+    void 모델_목록_조회_실패는_LlmException으로_변환한다() {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("unauthorized"));
+
+        assertThatThrownBy(() -> client.listModels())
+                .isInstanceOf(LlmException.class)
+                .hasMessageContaining("HTTP 401");
     }
 }

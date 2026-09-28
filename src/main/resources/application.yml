@@ -33,14 +33,10 @@ spring:
         format_sql: true
         default_batch_fetch_size: 100
 
-# 로컬 LLM (Ollama / LM Studio) — 환경변수로 전환
+# 로컬 LLM 호출 공통 설정 — 서버 IP·포트·모델은 화면의 'LLM 설정'에서 입력(DB 저장)
 llm:
-  provider: ${LLM_PROVIDER:ollama}          # ollama | lmstudio
-  base-url: ${LLM_BASE_URL:}                # 비우면 ollama=http://localhost:11434, lmstudio=http://localhost:1234
-  model: ${LLM_MODEL:qwen2.5:7b}
-  api-key: ${LLM_API_KEY:}                  # LM Studio 인증 토큰 등 (선택)
   temperature: 0.2
   connect-timeout: 5s
-  read-timeout: ${LLM_READ_TIMEOUT:120s}
-  concurrency: ${LLM_CONCURRENCY:1}         # 동시 요약 수 (GPU 1장이면 1 권장)
+  read-timeout: 120s
+  concurrency: 1          # 동시 요약 수 (GPU 1장이면 1 권장)
   queue-capacity: 100

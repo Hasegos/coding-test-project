@@ -1,13 +1,18 @@
 package io.dev.coding_test.service;
 
+import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.dto.MemoSummaryResponse;
+import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.model.enums.SummaryStatus;
+import io.dev.coding_test.repository.LlmSettingRepository;
 import io.dev.coding_test.repository.MemoRepository;
 import io.dev.coding_test.support.FakeLlmClient;
+import io.dev.coding_test.support.FakeLlmClientFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,15 +50,26 @@ class MemoSummaryServiceTest {
     @Autowired
     private FakeLlmClient fakeLlmClient;
 
+    @Autowired
+    private FakeLlmClientFactory fakeLlmClientFactory;
+
+    @Autowired
+    private LlmSettingService llmSettingService;
+
+    @Autowired
+    private LlmSettingRepository llmSettingRepository;
+
     @BeforeEach
     void setUp() {
         fakeLlmClient.reset();
+        saveSetting();
     }
 
     @AfterEach
     void tearDown() {
         fakeLlmClient.reset();
         memoRepository.deleteAll();
+        llmSettingRepository.deleteAll();
     }
 
     @Test
@@ -192,5 +208,48 @@ class MemoSummaryServiceTest {
     private MemoSummaryResponse awaitStatus(Long memoId, SummaryStatus status) {
         await().atMost(TIMEOUT).until(() -> memoSummaryService.getSummary(memoId).status() == status);
         return memoSummaryService.getSummary(memoId);
+    }
+
+    @Test
+    void 저장된_LLM_설정의_접속_정보로_요약한다() {
+        MemoResponse memo = memoService.create(new MemoRequest("회의", "본문"));
+        awaitStatus(memo.memoId(), SummaryStatus.DONE);
+
+        LlmConnection connection = fakeLlmClientFactory.lastConnection();
+        assertThat(connection.provider()).isEqualTo(LlmProvider.LMSTUDIO);
+        assertThat(connection.baseUrl()).isEqualTo("http://100.66.180.73:1234");
+        assertThat(connection.model()).isEqualTo("qwen2.5-7b-instruct");
+    }
+
+    @Test
+    void LLM이_설정되지_않았으면_설정_안내와_함께_FAILED로_기록한다() {
+        llmSettingRepository.deleteAll();
+
+        MemoResponse memo = memoService.create(new MemoRequest("회의", "본문"));
+
+        MemoSummaryResponse summary = awaitStatus(memo.memoId(), SummaryStatus.FAILED);
+        assertThat(summary.error()).isEqualTo(MemoSummaryService.NOT_CONFIGURED_MESSAGE);
+        assertThat(fakeLlmClient.calls()).isZero();
+    }
+
+    @Test
+    void LLM_설정_후_실패한_요약을_모두_다시_요청한다() {
+        llmSettingRepository.deleteAll();
+        MemoResponse first = memoService.create(new MemoRequest("회의", "본문"));
+        MemoResponse second = memoService.create(new MemoRequest("스터디", "본문"));
+        awaitStatus(first.memoId(), SummaryStatus.FAILED);
+        awaitStatus(second.memoId(), SummaryStatus.FAILED);
+
+        saveSetting();
+        int retried = memoSummaryService.retryFailed();
+
+        assertThat(retried).isEqualTo(2);
+        awaitStatus(first.memoId(), SummaryStatus.DONE);
+        awaitStatus(second.memoId(), SummaryStatus.DONE);
+    }
+
+    private void saveSetting() {
+        llmSettingService.save(new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
+                "qwen2.5-7b-instruct", null, false));
     }
 }

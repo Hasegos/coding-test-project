@@ -95,6 +95,8 @@ main { flex: 1; }
     padding: 32px 16px 64px;
 }
 
+.container--narrow { max-width: 800px; }
+
 .visually-hidden {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip: rect(0 0 0 0); white-space: nowrap;
@@ -130,6 +132,37 @@ main { flex: 1; }
 .btn--ghost { border-color: transparent; background: transparent; }
 
 .btn--sm { height: 34px; padding: 0 12px; font-size: 13px; }
+
+/* ===================== Form Field ===================== */
+.field { display: flex; flex-direction: column; gap: 8px; }
+
+.field__label-row { display: flex; justify-content: space-between; align-items: baseline; }
+
+.field__label { font-weight: 700; font-size: 14px; }
+
+.field__counter { font-size: 12px; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.field__counter--over { color: var(--danger); }
+
+.field__input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 15px;
+    transition: border-color .15s, box-shadow .15s;
+}
+.field__input::placeholder { color: var(--text-subtle); }
+.field__input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.field__input--error { border-color: var(--danger); }
+
+.field__hint { font-size: 12px; color: var(--text-subtle); }
+
+.field__error { font-size: 13px; color: var(--danger); }
 
 /* ===================== Card ===================== */
 .card {
@@ -176,6 +209,22 @@ main { flex: 1; }
 }
 .page-head__title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
 .page-head__desc { margin-top: 4px; color: var(--text-muted); font-size: 14px; }
+
+/* ===================== Notice Banner ===================== */
+.notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+    background: var(--warning-soft);
+    font-size: 14px;
+}
+.notice__text strong { color: var(--warning); }
 
 /* ===================== Toast ===================== */
 .toast {

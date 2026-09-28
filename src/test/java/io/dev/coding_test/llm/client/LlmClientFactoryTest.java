@@ -1,7 +1,8 @@
-package io.dev.coding_test.llm.config;
+package io.dev.coding_test.llm.client;
 
 import com.sun.net.httpserver.HttpServer;
-import io.dev.coding_test.llm.client.LlmClient;
+import io.dev.coding_test.llm.config.LlmProperties;
+import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.provider.lmstudio.LmStudioLlmClient;
@@ -15,23 +16,32 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 실제 HTTP 호출(JDK HttpClient)로 provider 선택, 인증 헤더, 연결 실패·타임아웃 메시지 변환을 검증한다.
+ * 실제 HTTP 호출(JDK HttpClient)로 provider 선택, 클라이언트 재사용, 인증 헤더,
+ * 리다이렉트 차단, 연결 실패·타임아웃 메시지 변환을 검증한다.
  */
-class LlmConfigTest {
+class LlmClientFactoryTest {
 
     private final SummaryResultParser parser = new SummaryResultParser(JsonMapper.builder().build());
+    private final LlmClientFactory factory = new LlmClientFactory(new LlmProperties(0.2, null, null, 1, 10), parser);
 
     @Test
-    void provider_설정에_따라_클라이언트_구현체를_선택한다() {
-        assertThat(new LlmConfig().llmClient(properties(LlmProvider.OLLAMA, "http://localhost:1", null), parser))
-                .isInstanceOf(OllamaLlmClient.class);
-        assertThat(new LlmConfig().llmClient(properties(LlmProvider.LMSTUDIO, "http://localhost:1", null), parser))
-                .isInstanceOf(LmStudioLlmClient.class);
+    void provider에_따라_클라이언트_구현체를_선택한다() {
+        assertThat(factory.create(connection(LlmProvider.OLLAMA, 11434, null))).isInstanceOf(OllamaLlmClient.class);
+        assertThat(factory.create(connection(LlmProvider.LMSTUDIO, 1234, null))).isInstanceOf(LmStudioLlmClient.class);
+    }
+
+    @Test
+    void 같은_접속_정보면_클라이언트를_재사용하고_바뀌면_새로_만든다() {
+        LlmClient first = factory.getClient(connection(LlmProvider.OLLAMA, 11434, null));
+
+        assertThat(factory.getClient(connection(LlmProvider.OLLAMA, 11434, null))).isSameAs(first);
+        assertThat(factory.getClient(connection(LlmProvider.OLLAMA, 11435, null))).isNotSameAs(first);
     }
 
     @Test
@@ -52,8 +62,7 @@ class LlmConfigTest {
         });
         server.start();
         try {
-            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
-            LlmClient client = new LlmConfig().llmClient(properties(LlmProvider.LMSTUDIO, baseUrl, "secret"), parser);
+            LlmClient client = factory.create(connection(LlmProvider.LMSTUDIO, server.getAddress().getPort(), "secret"));
 
             assertThat(client.summarize("제목", "본문").summary()).isEqualTo("요약");
             assertThat(authorization[0]).isEqualTo("Bearer secret");
@@ -65,13 +74,37 @@ class LlmConfigTest {
     }
 
     @Test
+    void 리다이렉트를_따라가지_않는다() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger redirected = new AtomicInteger();
+        server.createContext("/api/tags", exchange -> {
+            exchange.getResponseHeaders().add("Location", "/moved");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/moved", exchange -> {
+            redirected.incrementAndGet();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            LlmClient client = factory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
+
+            assertThatThrownBy(client::listModels).isInstanceOf(LlmException.class);
+            assertThat(redirected).hasValue(0);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void 서버에_연결할_수_없으면_연결_실패_메시지로_변환한다() throws IOException {
         int closedPort;
         try (ServerSocket socket = new ServerSocket(0)) {
             closedPort = socket.getLocalPort();
         }
-        LlmClient client = new LlmConfig().llmClient(
-                properties(LlmProvider.OLLAMA, "http://127.0.0.1:" + closedPort, null), parser);
+        LlmClient client = factory.create(connection(LlmProvider.OLLAMA, closedPort, null));
 
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
                 .isInstanceOf(LlmException.class)
@@ -92,10 +125,9 @@ class LlmConfigTest {
         });
         server.start();
         try {
-            LlmProperties properties = new LlmProperties(LlmProvider.OLLAMA,
-                    "http://127.0.0.1:" + server.getAddress().getPort(), "model", null, 0.2,
-                    Duration.ofSeconds(1), Duration.ofMillis(300), 1, 10);
-            LlmClient client = new LlmConfig().llmClient(properties, parser);
+            LlmClientFactory slowFactory = new LlmClientFactory(
+                    new LlmProperties(0.2, Duration.ofSeconds(1), Duration.ofMillis(300), 1, 10), parser);
+            LlmClient client = slowFactory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
 
             assertThatThrownBy(() -> client.summarize("제목", "본문"))
                     .isInstanceOf(LlmException.class)
@@ -105,7 +137,7 @@ class LlmConfigTest {
         }
     }
 
-    private static LlmProperties properties(LlmProvider provider, String baseUrl, String apiKey) {
-        return new LlmProperties(provider, baseUrl, "model", apiKey, 0.2, null, null, 1, 10);
+    private static LlmConnection connection(LlmProvider provider, int port, String apiKey) {
+        return new LlmConnection(provider, "127.0.0.1", port, "model", apiKey);
     }
 }

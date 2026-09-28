@@ -11,6 +11,8 @@
 <main class="container">
     <a class="back-link" th:href="@{/memos}">‹ 메모 목록</a>
 
+    <div th:replace="~{fragments/llm-notice :: notice}"></div>
+
     <div class="detail-head">
         <div class="detail-head__text">
             <h1 class="detail-head__title" th:text="${memo.title}">메모 제목</h1>
