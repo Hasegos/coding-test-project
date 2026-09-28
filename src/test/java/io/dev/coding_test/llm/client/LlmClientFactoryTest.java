@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.dev.coding_test.llm.config.LlmProperties;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.provider.lmstudio.LmStudioLlmClient;
 import io.dev.coding_test.llm.provider.ollama.OllamaLlmClient;
@@ -12,23 +13,63 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 실제 HTTP 호출(JDK HttpClient)로 provider 선택, 클라이언트 재사용, 인증 헤더,
- * 리다이렉트 차단, 연결 실패·타임아웃 메시지 변환을 검증한다.
+ * 실제 HTTP 호출(JDK HttpClient)로 주소 재검사, provider 선택, 클라이언트 재사용, 인증 헤더,
+ * 리다이렉트 차단, 연결 실패·타임아웃(전체 제한 시간) 메시지 변환을 검증한다.
+ * <p>
+ * 테스트 서버는 127.0.0.1에 띄우므로 주소 검사를 통과시키는 가드({@link AllowAllHostGuard})를 사용한다.
+ * </p>
  */
 class LlmClientFactoryTest {
 
     private final SummaryResultParser parser = new SummaryResultParser(JsonMapper.builder().build());
-    private final LlmClientFactory factory = new LlmClientFactory(new LlmProperties(0.2, null, null, 1, 10), parser);
+    private final LlmClientFactory factory =
+            new LlmClientFactory(new LlmProperties(0.2, null, null, null, null, 1, 10), parser, new AllowAllHostGuard());
+
+    @Test
+    void 실제_주소_검사로_루프백과_차단_대역은_클라이언트를_만들지_않는다() {
+        LlmClientFactory guarded = new LlmClientFactory(
+                new LlmProperties(0.2, null, null, null, null, 1, 10), parser, new LlmHostGuard("db.internal"));
+
+        assertThatThrownBy(() -> guarded.create(connection(LlmProvider.OLLAMA, "127.0.0.1", 11434, null)))
+                .isInstanceOf(LlmException.class)
+                .hasMessage(LlmHostGuard.LOCALHOST_MESSAGE);
+        assertThatThrownBy(() -> guarded.getClient(connection(LlmProvider.OLLAMA, "169.254.169.254", 80, null)))
+                .isInstanceOf(LlmException.class)
+                .hasMessage(LlmHostGuard.BLOCKED_MESSAGE);
+        assertThat(guarded.create(connection(LlmProvider.OLLAMA, "192.168.0.10", 11434, null)))
+                .isInstanceOf(OllamaLlmClient.class);
+    }
+
+    @Test
+    void 저장된_주소도_호출할_때마다_다시_검사한다() {
+        AtomicBoolean allowed = new AtomicBoolean(true);
+        LlmClientFactory switching = new LlmClientFactory(new LlmProperties(0.2, null, null, null, null, 1, 10), parser,
+                new LlmHostGuard("") {
+                    @Override
+                    public Optional<String> rejectReason(String rawHost) {
+                        return allowed.get() ? Optional.empty() : Optional.of("차단");
+                    }
+                });
+        LlmConnection connection = connection(LlmProvider.OLLAMA, "192.168.0.10", 11434, null);
+        switching.getClient(connection);
+
+        allowed.set(false);
+
+        assertThatThrownBy(() -> switching.getClient(connection)).isInstanceOf(LlmException.class).hasMessage("차단");
+    }
 
     @Test
     void provider에_따라_클라이언트_구현체를_선택한다() {
@@ -91,7 +132,9 @@ class LlmClientFactoryTest {
         try {
             LlmClient client = factory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
 
-            assertThatThrownBy(client::listModels).isInstanceOf(LlmException.class);
+            assertThatThrownBy(client::listModels)
+                    .isInstanceOf(LlmException.class)
+                    .hasMessage("LLM 서버가 다른 주소로 리다이렉트했어요. IP·포트를 확인해주세요.");
             assertThat(redirected).hasValue(0);
         } finally {
             server.stop(0);
@@ -126,7 +169,8 @@ class LlmClientFactoryTest {
         server.start();
         try {
             LlmClientFactory slowFactory = new LlmClientFactory(
-                    new LlmProperties(0.2, Duration.ofSeconds(1), Duration.ofMillis(300), 1, 10), parser);
+                    new LlmProperties(0.2, Duration.ofSeconds(1), Duration.ofMillis(300), null, null, 1, 10),
+                    parser, new AllowAllHostGuard());
             LlmClient client = slowFactory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
 
             assertThatThrownBy(() -> client.summarize("제목", "본문"))
@@ -137,7 +181,58 @@ class LlmClientFactoryTest {
         }
     }
 
+    @Test
+    void 본문을_조금씩_보내며_버티는_서버도_전체_제한_시간에_끊는다() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/tags", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write("{\"models\": [".getBytes(StandardCharsets.UTF_8));
+                for (int i = 0; i < 50; i++) {
+                    out.write(' ');
+                    out.flush();
+                    Thread.sleep(100);
+                }
+            } catch (IOException | InterruptedException ignored) {
+                // 클라이언트가 끊으면 쓰기가 실패한다
+            }
+        });
+        server.start();
+        try {
+            LlmClientFactory slowFactory = new LlmClientFactory(
+                    new LlmProperties(0.2, Duration.ofSeconds(1), null, Duration.ofMillis(500), null, 1, 10),
+                    parser, new AllowAllHostGuard());
+            LlmClient client = slowFactory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
+
+            long start = System.nanoTime();
+            assertThatThrownBy(client::listModels)
+                    .isInstanceOf(LlmException.class)
+                    .hasMessageContaining("응답 시간(500ms)");
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(3));
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static LlmConnection connection(LlmProvider provider, int port, String apiKey) {
-        return new LlmConnection(provider, "127.0.0.1", port, "model", apiKey);
+        return connection(provider, "127.0.0.1", port, apiKey);
+    }
+
+    private static LlmConnection connection(LlmProvider provider, String host, int port, String apiKey) {
+        return new LlmConnection(provider, host, port, "model", apiKey);
+    }
+
+    /** 테스트 서버(127.0.0.1)에 연결하기 위해 주소 검사를 통과시키는 가드 */
+    private static class AllowAllHostGuard extends LlmHostGuard {
+
+        AllowAllHostGuard() {
+            super("");
+        }
+
+        @Override
+        public Optional<String> rejectReason(String rawHost) {
+            return Optional.empty();
+        }
     }
 }
