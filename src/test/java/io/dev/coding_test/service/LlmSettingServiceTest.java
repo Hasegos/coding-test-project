@@ -1,9 +1,11 @@
 package io.dev.coding_test.service;
 
-import io.dev.coding_test.dto.LlmModelsRequest;
+import io.dev.coding_test.dto.LlmConnectionTestRequest;
+import io.dev.coding_test.dto.LlmConnectionTestResponse;
 import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.dto.LlmSettingResponse;
 import io.dev.coding_test.llm.dto.LlmConnection;
+import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.LlmSetting;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.repository.LlmSettingRepository;
@@ -17,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -74,32 +77,48 @@ class LlmSettingServiceTest {
 
     @Test
     void API_Key는_비워두면_유지하고_삭제를_선택하면_지운다() {
-        llmSettingService.save(request(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, "model", "secret", false));
+        llmSettingService.save(request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", "secret", false));
 
-        LlmSettingResponse kept = llmSettingService.save(request(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, "model", "", false));
+        LlmSettingResponse kept = llmSettingService.save(request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", "", false));
         assertThat(kept.hasApiKey()).isTrue();
         assertThat(llmSettingService.findConnection()).get().extracting(LlmConnection::apiKey).isEqualTo("secret");
 
-        LlmSettingResponse cleared = llmSettingService.save(request(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, "model", null, true));
+        LlmSettingResponse cleared = llmSettingService.save(request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", null, true));
         assertThat(cleared.hasApiKey()).isFalse();
     }
 
     @Test
     void 연결_테스트는_입력한_접속_정보로_모델_목록을_조회한다() {
-        fakeLlmClient.willListModels(() -> List.of("qwen2.5-vl-7b-instruct"));
+        fakeLlmClient.willListModels(() -> Optional.of(List.of("qwen2.5-vl-7b-instruct")));
 
-        List<String> models = llmSettingService.listModels(
-                new LlmModelsRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, null));
+        LlmConnectionTestResponse result = llmSettingService.testConnection(
+                new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, null));
 
-        assertThat(models).containsExactly("qwen2.5-vl-7b-instruct");
+        assertThat(result.ok()).isTrue();
+        assertThat(result.models()).containsExactly("qwen2.5-vl-7b-instruct");
+        assertThat(result.message()).isNull();
         assertThat(fakeLlmClientFactory.lastConnection().baseUrl()).isEqualTo("http://100.66.180.73:1234");
     }
 
     @Test
-    void 연결_테스트에서_API_Key를_비워두면_저장된_키를_사용한다() {
-        llmSettingService.save(request(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, "model", "secret", false));
+    void 연결_테스트_실패는_예외_대신_ok_false로_돌려준다() {
+        fakeLlmClient.willListModels(() -> {
+            throw new LlmException("LLM 서버 인증에 실패했어요. API Key를 확인해주세요.");
+        });
 
-        llmSettingService.listModels(new LlmModelsRequest(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, ""));
+        LlmConnectionTestResponse result = llmSettingService.testConnection(
+                new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, null));
+
+        assertThat(result.ok()).isFalse();
+        assertThat(result.models()).isNull();
+        assertThat(result.message()).isEqualTo("LLM 서버 인증에 실패했어요. API Key를 확인해주세요.");
+    }
+
+    @Test
+    void 연결_테스트에서_API_Key를_비워두면_저장된_키를_사용한다() {
+        llmSettingService.save(request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", "secret", false));
+
+        llmSettingService.testConnection(new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, ""));
 
         assertThat(fakeLlmClientFactory.lastConnection().apiKey()).isEqualTo("secret");
     }
