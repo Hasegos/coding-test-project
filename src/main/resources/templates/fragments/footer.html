@@ -3,4 +3,6 @@
         <span>AI Memo · 로컬 LLM 기반 메모 자동 정리</span>
         <span class="footer__meta">Spring Boot · PostgreSQL · Self-hosted LLM</span>
     </div>
+    <!-- 리다이렉트 후 알림(flash) 메시지 -->
+    <div hidden data-flash-toast th:if="${toast}" th:data-message="${toast}"></div>
 </footer>
