@@ -1,7 +1,7 @@
 package io.dev.coding_test.support;
 
-import io.dev.coding_test.llm.LlmClient;
-import io.dev.coding_test.llm.SummaryResult;
+import io.dev.coding_test.llm.client.LlmClient;
+import io.dev.coding_test.llm.dto.SummaryResult;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
