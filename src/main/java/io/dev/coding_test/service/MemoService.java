@@ -2,13 +2,13 @@ package io.dev.coding_test.service;
 
 import io.dev.coding_test.common.exception.NotFoundException;
 import io.dev.coding_test.common.util.TimeUtil;
-import io.dev.coding_test.dto.MemoListItem;
-import io.dev.coding_test.dto.MemoListRow;
-import io.dev.coding_test.dto.MemoRequest;
-import io.dev.coding_test.dto.MemoResponse;
+import io.dev.coding_test.dto.memo.MemoListItem;
+import io.dev.coding_test.dto.memo.MemoListRow;
+import io.dev.coding_test.dto.memo.MemoRequest;
+import io.dev.coding_test.dto.memo.MemoResponse;
 import io.dev.coding_test.model.Memo;
-import io.dev.coding_test.repository.UserRepository;
 import io.dev.coding_test.repository.MemoRepository;
+import io.dev.coding_test.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
