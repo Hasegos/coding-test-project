@@ -76,9 +76,9 @@
 .user-menu__button {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     height: 36px;
-    padding: 0 8px 0 4px;
+    padding: 0 10px 0 14px;
     border-radius: 999px;
     border: 1px solid var(--border);
     background: var(--surface);
@@ -89,15 +89,6 @@
 .user-menu__button:hover { background: var(--surface-2); }
 .user-menu__button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-.user-menu__avatar {
-    width: 28px; height: 28px;
-    display: grid; place-items: center;
-    border-radius: 50%;
-    background: var(--primary-soft);
-    color: var(--primary);
-    font-weight: 800;
-    font-size: 13px;
-}
 .user-menu__name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-menu__chevron { width: 16px; height: 16px; color: var(--text-subtle); transition: transform .15s; }
 .user-menu__button[aria-expanded="true"] .user-menu__chevron { transform: rotate(180deg); }
@@ -161,8 +152,8 @@
 }
 
 @media (max-width: 520px) {
-    .user-menu__name { display: none; }
-    .user-menu__button { padding: 0 6px 0 4px; gap: 4px; }
+    .user-menu__name { max-width: 84px; }
+    .user-menu__button { padding: 0 8px 0 12px; gap: 4px; }
     .header__link { display: none; }
     .header__link--settings { display: inline-flex; }
     .header__link-text { display: none; }
