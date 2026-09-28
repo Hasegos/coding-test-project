@@ -1,4 +1,4 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.memo;
 
 import io.dev.coding_test.model.enums.SummaryStatus;
 
