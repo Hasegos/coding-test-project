@@ -41,7 +41,8 @@
                     <label class="field__label" for="host">서버 IP</label>
                     <input class="field__input" id="host" type="text" th:field="*{host}"
                            th:classappend="${#fields.hasErrors('host')} ? 'field__input--error'"
-                           placeholder="예) 100.66.180.73" maxlength="15" inputmode="decimal" autocomplete="off" required>
+                           placeholder="예) 192.168.0.10 또는 100.66.180.73" maxlength="45" inputmode="text"
+                           autocomplete="off" spellcheck="false" autocapitalize="off" required>
                     <p class="field__error" th:if="${#fields.hasErrors('host')}" th:errors="*{host}"></p>
                 </div>
                 <div class="field field-row__port">
@@ -53,7 +54,8 @@
                 </div>
             </div>
             <p class="field__hint">
-                보안을 위해 로컬 IP만 입력할 수 있어요 — 127.x · 10.x · 172.16~31.x · 192.168.x · Tailscale 100.64~127.x
+                보안을 위해 LLM 서버 PC의 로컬 IP만 입력할 수 있어요 — 10.x · 172.16~31.x · 192.168.x · Tailscale 100.64~127.x (IPv6 fd00::/8 포함)<br>
+                localhost·127.0.0.1(루프백), 169.254.x(링크 로컬), 공인 IP, 도메인은 사용할 수 없어요.
             </p>
 
             <!-- API Key -->
@@ -103,6 +105,10 @@
                 <li>
                     <strong>Ollama</strong>
                     다른 PC에서 접속하려면 <code>OLLAMA_HOST=0.0.0.0</code>으로 실행하세요. 기본 포트는 11434입니다.
+                </li>
+                <li>
+                    <strong>같은 PC에서 실행 중이라면</strong>
+                    localhost 대신 그 PC의 사설 IP(<code>ipconfig</code> / <code>ip addr</code>로 확인한 192.168.x.x 등)를 입력하세요.
                 </li>
                 <li>
                     <strong>Tailscale</strong>
