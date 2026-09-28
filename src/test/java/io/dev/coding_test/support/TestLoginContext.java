@@ -1,7 +1,7 @@
 package io.dev.coding_test.support;
 
-import io.dev.coding_test.common.security.CustomUserPrincipal;
 import io.dev.coding_test.model.enums.UserRole;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
