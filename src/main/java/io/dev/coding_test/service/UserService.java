@@ -3,8 +3,8 @@ package io.dev.coding_test.service;
 import io.dev.coding_test.common.exception.DuplicateUsernameException;
 import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.SignupRequest;
-import io.dev.coding_test.model.Member;
-import io.dev.coding_test.repository.MemberRepository;
+import io.dev.coding_test.model.User;
+import io.dev.coding_test.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,12 +22,12 @@ import org.springframework.validation.Errors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class MemberService {
+public class UserService {
 
     public static final String PASSWORD_MISMATCH_MESSAGE = "비밀번호가 일치하지 않아요.";
     public static final String DUPLICATE_USERNAME_MESSAGE = "이미 사용 중인 아이디예요.";
 
-    private final MemberRepository memberRepository;
+    private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -42,7 +42,7 @@ public class MemberService {
                 && !request.getPassword().equals(request.getPasswordConfirm())) {
             errors.rejectValue("passwordConfirm", "mismatch", PASSWORD_MISMATCH_MESSAGE);
         }
-        if (!errors.hasFieldErrors("username") && memberRepository.existsByUsername(request.getUsername())) {
+        if (!errors.hasFieldErrors("username") && userRepository.existsByUsername(request.getUsername())) {
             errors.rejectValue("username", "duplicate", DUPLICATE_USERNAME_MESSAGE);
         }
     }
@@ -56,17 +56,17 @@ public class MemberService {
      */
     @Transactional
     public Long signup(SignupRequest request) {
-        Member member = new Member();
-        member.setUsername(request.getUsername());
-        member.setPassword(passwordEncoder.encode(request.getPassword()));
-        member.setNickname(request.getNickname());
-        member.setCreatedAt(TimeUtil.now());
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setNickname(request.getNickname());
+        user.setCreatedAt(TimeUtil.now());
         try {
-            memberRepository.saveAndFlush(member);
+            userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateUsernameException(DUPLICATE_USERNAME_MESSAGE);
         }
-        log.info("회원가입 - memberId: {}, username: {}", member.getMemberId(), member.getUsername());
-        return member.getMemberId();
+        log.info("회원가입 - userId: {}, username: {}", user.getUserId(), user.getUsername());
+        return user.getUserId();
     }
 }
