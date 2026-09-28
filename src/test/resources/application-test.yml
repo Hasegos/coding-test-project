@@ -1,0 +1,15 @@
+spring:
+  config:
+    activate:
+      on-profile: test # 테스트 환경 (PostgreSQL 없이 H2 인메모리 DB 사용)
+
+  datasource:
+    url: jdbc:h2:mem:ai_memo;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
