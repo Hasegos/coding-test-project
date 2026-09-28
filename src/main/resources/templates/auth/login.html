@@ -3,6 +3,7 @@
 <head>
     <th:block th:replace="~{fragments/head :: head('로그인')}"></th:block>
     <link rel="stylesheet" th:href="@{/css/pages/auth.css}">
+    <script th:src="@{/js/auth.js}" defer></script>
 </head>
 <body>
 <div th:replace="~{fragments/header :: header}"></div>
@@ -12,23 +13,24 @@
         <h1 class="auth__title">로그인</h1>
         <p class="auth__desc">메모를 저장하면 내 로컬 LLM이 요약해줘요.</p>
 
-        <p class="auth__alert auth__alert--error" role="alert" th:if="${param.error != null}">
-            아이디 또는 비밀번호가 올바르지 않아요.
+        <p class="auth__alert auth__alert--error" role="alert" th:if="${loginError != null}" th:text="${loginError}">
+            아이디(이메일) 또는 비밀번호가 올바르지 않아요.
         </p>
         <p class="auth__alert" role="status" th:if="${param.logout != null}">로그아웃했어요.</p>
 
-        <form class="auth__form" th:action="@{/login}" method="post" novalidate>
+        <form class="auth__form" th:action="@{/login}" method="post" novalidate data-auth-form="login">
             <div class="field">
-                <label class="field__label" for="username">아이디</label>
-                <input class="field__input" id="username" name="username" type="text" th:value="${username}"
-                       maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false" required
-                       th:autofocus="${username == null}">
+                <label class="field__label" for="username">아이디 (이메일)</label>
+                <input class="field__input" id="username" name="username" type="email" th:value="${loginUsername}"
+                       placeholder="user@example.com" maxlength="100" autocomplete="username" autocapitalize="off"
+                       spellcheck="false" required th:autofocus="${loginUsername == null}">
+                <p class="field__error" data-error-for="username" aria-live="polite"></p>
             </div>
             <div class="field">
                 <label class="field__label" for="password">비밀번호</label>
                 <input class="field__input" id="password" name="password" type="password"
-                       maxlength="64" autocomplete="current-password" required
-                       th:autofocus="${username != null}">
+                       maxlength="64" autocomplete="current-password" required th:autofocus="${loginUsername != null}">
+                <p class="field__error" data-error-for="password" aria-live="polite"></p>
             </div>
             <button class="btn btn--primary auth__submit" type="submit">로그인</button>
         </form>

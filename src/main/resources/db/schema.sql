@@ -11,7 +11,7 @@
 -- 회원 (비밀번호는 BCrypt 해시만 저장)
 CREATE TABLE IF NOT EXISTS users (
     user_id     BIGSERIAL       PRIMARY KEY,
-    username    VARCHAR(20)     NOT NULL,                       -- 로그인 아이디 (영문 소문자·숫자·밑줄)
+    username    VARCHAR(100)    NOT NULL,                       -- 로그인 아이디 (이메일, 소문자로 저장)
     password    VARCHAR(100)    NOT NULL,                       -- {bcrypt}$2a$10$...
     nickname    VARCHAR(20)     NOT NULL,
     role        VARCHAR(20)     NOT NULL DEFAULT 'USER',        -- USER
@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS llm_setting (
 ALTER TABLE llm_setting ALTER COLUMN host TYPE VARCHAR(45);
 -- API Key 암호화 이전 버전 DB는 암호문을 저장할 수 있도록 길이를 늘린다.
 ALTER TABLE llm_setting ALTER COLUMN api_key TYPE VARCHAR(400);
+-- 아이디를 이메일로 바꾼 이전 버전 DB는 이메일 길이만큼 늘린다.
+ALTER TABLE users ALTER COLUMN username TYPE VARCHAR(100);
 
 -- (선택) 메모가 많아져 제목·본문 검색(LIKE '%키워드%')이 느려지면 trigram 인덱스를 추가한다.
 -- pg_trgm 확장 설치 권한이 필요하다.
