@@ -9,9 +9,9 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * 사용자가 LLM 설정 화면에서 입력한 로컬 LLM 서버 접속 정보.
+ * 회원이 LLM 설정 화면에서 입력한 로컬 LLM 서버 접속 정보.
  * <p>
- * 설정은 하나만 존재하므로 항상 고정 ID({@code 1})로 저장한다.
+ * 회원마다 하나씩 두며, 회원 ID를 그대로 기본키로 쓴다. ({@code @MapsId})
  * </p>
  */
 @Entity
@@ -21,12 +21,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class LlmSetting {
 
-    /** 단일 설정 행의 고정 ID */
-    public static final long SINGLETON_ID = 1L;
-
     @Id
-    @Column(name = "setting_id")
-    private Long settingId;
+    @Column(name = "member_id")
+    private Long memberId;
+
+    @MapsId
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "member_id", foreignKey = @ForeignKey(name = "fk_llm_setting_member"))
+    private Member member;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "provider", nullable = false, length = 20)
