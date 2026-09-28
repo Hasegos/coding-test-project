@@ -1,9 +1,9 @@
 package io.dev.coding_test.support;
 
-import io.dev.coding_test.common.security.LoginMember;
+import io.dev.coding_test.common.security.CustomUserPrincipal;
 import io.dev.coding_test.common.util.TimeUtil;
-import io.dev.coding_test.model.Member;
-import io.dev.coding_test.repository.MemberRepository;
+import io.dev.coding_test.model.User;
+import io.dev.coding_test.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
-public class TestMembers {
+public class TestUsers {
 
-    private final MemberRepository memberRepository;
+    private final UserRepository userRepository;
     private final TestLoginContext testLoginContext;
 
     /**
@@ -27,14 +27,14 @@ public class TestMembers {
      * @param username 아이디 (닉네임은 아이디 앞에 "닉"을 붙인다)
      * @return 저장한 회원의 로그인 정보
      */
-    public LoginMember create(String username) {
-        Member member = new Member();
-        member.setUsername(username);
-        member.setPassword("{noop}test-password");
-        member.setNickname("닉" + username);
-        member.setCreatedAt(TimeUtil.now());
-        memberRepository.save(member);
-        return new LoginMember(member.getMemberId(), username, member.getNickname(), null);
+    public CustomUserPrincipal create(String username) {
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword("{noop}test-password");
+        user.setNickname("닉" + username);
+        user.setCreatedAt(TimeUtil.now());
+        userRepository.save(user);
+        return new CustomUserPrincipal(user.getUserId(), username, user.getNickname(), user.getRole(), null);
     }
 
     /**
@@ -43,9 +43,9 @@ public class TestMembers {
      * @param username 아이디
      * @return 저장한 회원의 로그인 정보
      */
-    public LoginMember login(String username) {
-        LoginMember member = create(username);
-        testLoginContext.loginAs(member);
-        return member;
+    public CustomUserPrincipal login(String username) {
+        CustomUserPrincipal user = create(username);
+        testLoginContext.loginAs(user);
+        return user;
     }
 }
