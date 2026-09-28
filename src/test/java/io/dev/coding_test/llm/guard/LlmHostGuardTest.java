@@ -47,6 +47,13 @@ class LlmHostGuardTest {
             "010.0.0.1              | INVALID",
             "1::2::3                | INVALID",
             "fe80::1%eth0           | INVALID",
+            "http://100.66.180.73   | URL",
+            "http://100.66.180.73:1234 | URL",
+            "https://192.168.0.10/  | URL",
+            "100.66.180.73:1234     | URL",
+            "192.168.0.10/          | URL",
+            "[fd7a:115c:a1e0::1]    | URL",
+            "http://localhost:1234  | URL",
     })
     void 거부_사유별_메시지를_돌려준다(String host, String reason) {
         String expected = switch (reason) {
@@ -55,6 +62,7 @@ class LlmHostGuardTest {
             case "PUBLIC" -> LlmHostGuard.PUBLIC_MESSAGE;
             case "DATABASE" -> LlmHostGuard.DATABASE_MESSAGE;
             case "DOMAIN" -> LlmHostGuard.DOMAIN_MESSAGE;
+            case "URL" -> LlmHostGuard.URL_MESSAGE;
             default -> LlmHostGuard.INVALID_IP_MESSAGE;
         };
 

@@ -1,5 +1,5 @@
 /**
- * LLM 설정 — 런타임별 기본 포트 / 연결 테스트(모델 목록 불러오기) / 모델 선택
+ * LLM 설정 — 런타임별 기본 포트 / 주소 붙여넣기 정리 / 연결 테스트(모델 목록 불러오기) / 모델 선택
  */
 (function () {
     'use strict';
@@ -16,6 +16,46 @@
         const chips = form.querySelector('[data-model-chips]');
         const result = form.querySelector('[data-test-result]');
         const testButton = form.querySelector('[data-test-connection]');
+
+        /* ===================== 주소 붙여넣기 정리 ===================== */
+        // LM Studio의 "Reachable at" 값(http://100.66.180.73:1234)처럼 주소 전체를 붙여넣으면 IP와 포트로 나눈다.
+        function normalizeHost() {
+            const value = hostInput.value.trim();
+            let host = value;
+            let port = '';
+
+            if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+                try {
+                    const url = new URL(value);
+                    host = url.hostname;
+                    port = url.port;
+                } catch (e) {
+                    return;
+                }
+            } else {
+                const ipv4WithPort = value.match(/^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})\/?$/);
+                const ipv6WithPort = value.match(/^\[([0-9a-f:.]+)\](?::(\d{1,5}))?\/?$/i);
+                if (ipv4WithPort) {
+                    host = ipv4WithPort[1];
+                    port = ipv4WithPort[2];
+                } else if (ipv6WithPort) {
+                    host = ipv6WithPort[1];
+                    port = ipv6WithPort[2] || '';
+                } else {
+                    host = value.replace(/\/+$/, '');
+                }
+            }
+
+            host = host.replace(/^\[|\]$/g, '');
+            if (host !== hostInput.value) hostInput.value = host;
+            if (port) portInput.value = port;
+        }
+
+        hostInput.addEventListener('paste', function () {
+            setTimeout(normalizeHost, 0);
+        });
+        hostInput.addEventListener('change', normalizeHost);
+        form.addEventListener('submit', normalizeHost);
 
         function selectedProvider() {
             return form.querySelector('input[name="provider"]:checked');
@@ -70,6 +110,7 @@
 
         /* ===================== 연결 테스트 ===================== */
         testButton.addEventListener('click', function () {
+            normalizeHost();
             const provider = selectedProvider();
             testButton.disabled = true;
             showResult('연결하는 중…');

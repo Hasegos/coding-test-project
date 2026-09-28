@@ -35,6 +35,8 @@ public class LlmHostGuard {
 
     public static final String LOCALHOST_MESSAGE =
             "localhost·127.0.0.1 같은 루프백 주소는 사용할 수 없어요. LLM 서버 PC의 사설 IP(192.168.x.x 등)나 Tailscale IP(100.x.x.x)를 입력해주세요.";
+    public static final String URL_MESSAGE =
+            "http:// 나 포트 없이 IP만 입력해주세요. (예: 100.66.180.73) 포트는 오른쪽 칸에 입력합니다.";
     public static final String DOMAIN_MESSAGE = "도메인이 아닌 IP 주소를 입력해주세요. (예: Tailscale IP 100.x.x.x)";
     public static final String INVALID_IP_MESSAGE = "IP 주소 형식이 올바르지 않아요.";
     public static final String BLOCKED_MESSAGE =
@@ -46,6 +48,9 @@ public class LlmHostGuard {
     /** 루프백으로 연결되는 로컬 호스트명 (Docker 호스트 포함) */
     private static final Set<String> LOCAL_HOSTNAMES = Set.of(
             "localhost", "host.docker.internal", "gateway.docker.internal", "kubernetes.docker.internal");
+
+    /** 주소 전체(http://…, IP:포트, [IPv6])를 붙여넣은 경우 — LM Studio의 "Reachable at" 값을 그대로 복사하는 경우가 많다 */
+    private static final Pattern URL_LIKE = Pattern.compile("://|/|\\[|^[0-9.]+:\\d*$");
 
     /** IP처럼 보이지만 해석되지 않는 값(127.1, 2130706433, 1::2::3)은 형식 오류로 안내한다 */
     private static final Pattern IP_LIKE = Pattern.compile("^[0-9.]+$|:");
@@ -67,6 +72,9 @@ public class LlmHostGuard {
         String host = rawHost == null ? "" : rawHost.strip().toLowerCase(Locale.ROOT);
         if (host.isEmpty()) {
             return Optional.of(INVALID_IP_MESSAGE);
+        }
+        if (URL_LIKE.matcher(host).find()) {
+            return Optional.of(URL_MESSAGE);
         }
         if (LOCAL_HOSTNAMES.contains(host) || host.endsWith(".localhost")) {
             return Optional.of(LOCALHOST_MESSAGE);
