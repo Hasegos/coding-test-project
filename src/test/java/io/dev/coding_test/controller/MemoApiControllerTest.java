@@ -13,8 +13,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -93,5 +95,54 @@ class MemoApiControllerTest {
         mockMvc.perform(get("/api/memos/{id}", 9_999))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void 메모를_수정한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("초안", "초안 본문"));
+
+        mockMvc.perform(put("/api/memos/{id}", memo.memoId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title": "최종", "content": "최종 본문"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("최종"))
+                .andExpect(jsonPath("$.content").value("최종 본문"));
+    }
+
+    @Test
+    void 수정_요청이_잘못되면_400을_반환한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("초안", "초안 본문"));
+
+        mockMvc.perform(put("/api/memos/{id}", memo.memoId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title": "최종", "content": ""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("content"));
+    }
+
+    @Test
+    void 메모를_삭제하면_204를_반환하고_이후_조회는_404다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("삭제할 메모", "본문"));
+
+        mockMvc.perform(delete("/api/memos/{id}", memo.memoId()))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/memos/{id}", memo.memoId()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 존재하지_않는_메모를_수정_삭제하면_404를_반환한다() throws Exception {
+        mockMvc.perform(put("/api/memos/{id}", 9_999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title": "제목", "content": "본문"}
+                                """))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/memos/{id}", 9_999))
+                .andExpect(status().isNotFound());
     }
 }
