@@ -8,41 +8,61 @@ import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.prompt.SummaryPrompt;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.ConnectException;
+import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * 런타임별 LLM 클라이언트의 공통 흐름을 담당한다.
  * <p>
  * 프롬프트 구성 → 런타임별 HTTP 호출({@link #requestCompletion}, {@link #requestModels}) → 응답 해석 순서로 처리하고,
- * HTTP 예외는 사용자에게 보여줄 수 있는 {@link LlmException} 메시지로 변환한다.
+ * HTTP 호출은 {@link #postJson} / {@link #getJson}으로 보내 다음 규칙을 공통으로 적용한다.
  * </p>
+ * <ul>
+ *     <li>응답 본문은 {@code llm.max-response-size}까지만 읽는다. (큰 응답으로 메모리를 소모시키는 것 방지)</li>
+ *     <li>전체 제한 시간: 요약 {@code llm.read-timeout}, 모델 목록 {@code llm.models-timeout}
+ *         (조금씩 보내며 버티는 서버까지 끊는다)</li>
+ *     <li>상태 코드를 사용자용 메시지로 바꾸고, LLM 서버의 오류 응답 본문은 노출하지 않는다.
+ *         사용자가 입력한 주소의 응답을 그대로 돌려주면 서버가 사설망의 임의 주소 내용을 읽어오는 통로가 되기 때문이다.</li>
+ * </ul>
  */
 @Slf4j
 public abstract class AbstractLlmClient implements LlmClient {
 
-    private static final int MAX_ERROR_BODY_LENGTH = 200;
+    /** 채팅에 쓸 수 없는 모델(임베딩 / 리랭커 / 음성 / 이미지 등). 모델 목록 API는 이런 모델까지 섞어서 준다. */
+    public static final Pattern NON_CHAT_MODEL = Pattern.compile(
+            "embed|bge-|rerank|whisper|tts|clip|dall-e|moderation|transcribe",
+            Pattern.CASE_INSENSITIVE);
 
-    protected final RestClient restClient;
     protected final LlmConnection connection;
     protected final LlmProperties properties;
+    private final RestClient chatClient;
+    private final RestClient modelsClient;
     private final SummaryResultParser parser;
 
-    protected AbstractLlmClient(RestClient restClient, LlmConnection connection,
+    /**
+     * @param chatClient   요약 요청용 HTTP 클라이언트 (전체 제한 시간 {@code llm.read-timeout})
+     * @param modelsClient 모델 목록 조회용 HTTP 클라이언트 (전체 제한 시간 {@code llm.models-timeout})
+     */
+    protected AbstractLlmClient(RestClient chatClient, RestClient modelsClient, LlmConnection connection,
                                 LlmProperties properties, SummaryResultParser parser) {
-        this.restClient = restClient;
+        this.chatClient = chatClient;
+        this.modelsClient = modelsClient;
         this.connection = connection;
         this.properties = properties;
         this.parser = parser;
@@ -50,28 +70,30 @@ public abstract class AbstractLlmClient implements LlmClient {
 
     @Override
     public SummaryResult summarize(String title, String content) {
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         String raw;
         try {
             raw = requestCompletion(SummaryPrompt.SYSTEM, SummaryPrompt.userMessage(title, content));
         } catch (RestClientException e) {
-            throw translate(e);
+            throw translate(e, properties.readTimeout(), elapsed(start));
         }
         log.info("LLM 응답 수신 - provider: {}, model: {}, {}ms",
-                connection.provider(), connection.model(), System.currentTimeMillis() - start);
+                connection.provider(), connection.model(), elapsed(start).toMillis());
         return parser.parse(raw);
     }
 
     @Override
-    public List<String> listModels() {
+    public Optional<List<String>> listModels() {
+        long start = System.nanoTime();
         try {
-            return requestModels().stream()
+            return requestModels().map(models -> models.stream()
                     .filter(model -> model != null && !model.isBlank())
+                    .filter(model -> !NON_CHAT_MODEL.matcher(model).find())
                     .distinct()
                     .sorted()
-                    .toList();
+                    .toList());
         } catch (RestClientException e) {
-            throw translate(e);
+            throw translate(e, properties.modelsTimeout(), elapsed(start));
         }
     }
 
@@ -86,6 +108,7 @@ public abstract class AbstractLlmClient implements LlmClient {
      * @param system 시스템 프롬프트
      * @param user   사용자 메시지
      * @return 모델이 생성한 응답 문자열
+     * @throws LlmException        오류 응답 또는 응답 형식 오류
      * @throws RestClientException HTTP 호출에 실패한 경우
      */
     protected abstract String requestCompletion(String system, String user);
@@ -93,64 +116,137 @@ public abstract class AbstractLlmClient implements LlmClient {
     /**
      * 런타임별 API로 사용 가능한 모델 목록을 조회한다.
      *
-     * @return 모델명 목록
+     * @return 모델명 목록, 서버가 모델 목록 API를 지원하지 않으면(404) {@code Optional.empty()}
+     * @throws LlmException        오류 응답 또는 응답 형식 오류
      * @throws RestClientException HTTP 호출에 실패한 경우
      */
-    protected abstract List<String> requestModels();
+    protected abstract Optional<List<String>> requestModels();
+
+    /**
+     * 채팅 API에 JSON을 POST하고 응답 본문을 해석한다. 404는 모델을 찾을 수 없다는 뜻으로 안내한다.
+     *
+     * @param path 경로 (예: {@code /api/chat})
+     * @param body 요청 본문
+     * @param type 응답 본문 타입
+     * @return 응답 본문
+     */
+    protected final <T> T postJson(String path, Object body, Class<T> type) {
+        return chatClient.post()
+                .uri(path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .exchange((request, response) -> {
+                    int status = response.getStatusCode().value();
+                    if (status == 404) {
+                        throw new LlmException("LLM 서버에서 모델 '" + connection.model()
+                                + "'을(를) 찾을 수 없어요. LLM 설정에서 모델을 다시 선택해주세요.");
+                    }
+                    return readBody(response, status, type);
+                });
+    }
+
+    /**
+     * 모델 목록 API를 GET으로 호출하고 응답 본문을 해석한다.
+     *
+     * @param path 경로 (예: {@code /api/tags})
+     * @param type 응답 본문 타입
+     * @return 응답 본문, 404(모델 목록 API 미지원)면 {@code Optional.empty()}
+     */
+    protected final <T> Optional<T> getJson(String path, Class<T> type) {
+        return modelsClient.get()
+                .uri(path)
+                .exchange((request, response) -> {
+                    int status = response.getStatusCode().value();
+                    if (status == 404) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(readBody(response, status, type));
+                });
+    }
+
+    /**
+     * 상태 코드를 확인하고 본문을 최대 크기까지만 읽어 해석한다.
+     */
+    private <T> T readBody(ClientHttpResponse response, int status, Class<T> type) throws IOException {
+        if (status < 200 || status >= 300) {
+            log.warn("LLM 서버 오류 응답 - baseUrl: {}, status: {}", connection.baseUrl(), status);
+            throw new LlmException(statusMessage(status));
+        }
+        byte[] bytes = readLimited(response.getBody(), properties.maxResponseSize().toBytes());
+        try {
+            T body = JsonMapper.shared().readValue(bytes, type);
+            if (body == null) {
+                throw new LlmException(connection.provider().getLabel() + " 응답 형식이 올바르지 않아요.");
+            }
+            return body;
+        } catch (JacksonException e) {
+            log.warn("LLM 응답 해석 실패 - baseUrl: {}, {}", connection.baseUrl(), e.getOriginalMessage());
+            throw new LlmException(connection.provider().getLabel() + " 응답 형식이 올바르지 않아요. "
+                    + "IP·포트와 LLM 런타임 선택이 맞는지 확인해주세요.", e);
+        }
+    }
+
+    private static byte[] readLimited(InputStream body, long maxBytes) throws IOException {
+        byte[] bytes = body.readNBytes((int) Math.min(Integer.MAX_VALUE - 8, maxBytes + 1));
+        if (bytes.length > maxBytes) {
+            throw new LlmException("LLM 응답이 너무 커요. (최대 " + maxBytes / 1024 + "KB)");
+        }
+        return bytes;
+    }
+
+    /**
+     * 2xx가 아닌 상태 코드를 사용자용 메시지로 바꾼다. (404는 호출한 쪽에서 먼저 처리)
+     */
+    private static String statusMessage(int status) {
+        if (status == 401 || status == 403) {
+            return "LLM 서버 인증에 실패했어요. API Key를 확인해주세요.";
+        }
+        if (status == 400) {
+            return "LLM 서버가 요청을 거부했어요. (400) 모델이 로드되어 있는지, 모델명이 맞는지 확인해주세요.";
+        }
+        if (status == 429) {
+            return "LLM 서버 요청 한도를 초과했어요. 잠시 후 다시 시도해주세요.";
+        }
+        if (status >= 300 && status < 400) {
+            return "LLM 서버가 다른 주소로 리다이렉트했어요. IP·포트를 확인해주세요.";
+        }
+        return "LLM 서버가 " + status + " 응답을 반환했어요.";
+    }
 
     /**
      * HTTP 호출 예외를 사용자용 메시지를 가진 {@link LlmException}으로 변환한다.
+     * <p>
+     * 응답 본문을 읽는 중 전체 제한 시간이 지나면 JDK 요청 팩토리가 스트림을 닫아 {@code IOException: closed}가 되므로,
+     * 제한 시간만큼 지난 뒤의 I/O 오류도 시간 초과로 본다.
+     * </p>
      */
-    private LlmException translate(RestClientException e) {
+    private LlmException translate(RestClientException e, Duration timeout, Duration elapsed) {
         String baseUrl = connection.baseUrl();
-        if (e instanceof RestClientResponseException re) {
-            String detail = errorDetail(re);
-            log.warn("LLM 서버 오류 응답 - status: {}, detail: {}", re.getStatusCode(), detail);
-            return new LlmException("LLM 서버 오류 (HTTP " + re.getStatusCode().value() + ")"
-                    + (detail.isEmpty() ? "" : ": " + detail), e);
-        }
         if (e instanceof ResourceAccessException) {
             // 연결 타임아웃(HttpConnectTimeoutException)은 HttpTimeoutException의 하위 타입이므로 먼저 확인한다.
             if (hasCause(e, HttpConnectTimeoutException.class) || hasCause(e, ConnectException.class)
-                    || hasCause(e, UnknownHostException.class)) {
+                    || hasCause(e, NoRouteToHostException.class)) {
                 log.warn("LLM 서버 연결 실패 - baseUrl: {}, {}", baseUrl, e.getMostSpecificCause().toString());
                 return new LlmException("로컬 LLM 서버(" + baseUrl + ")에 연결할 수 없어요. "
                         + "서버 실행 여부와 LLM 설정 화면의 IP·포트를 확인해주세요.", e);
             }
-            if (hasCause(e, HttpTimeoutException.class) || hasCause(e, SocketTimeoutException.class)) {
-                log.warn("LLM 응답 시간 초과 - baseUrl: {}, timeout: {}", baseUrl, properties.readTimeout());
-                return new LlmException("LLM 응답 시간(" + properties.readTimeout().toSeconds()
-                        + "초)이 초과됐어요. 더 작은 모델을 쓰거나 llm.read-timeout 설정을 늘려주세요.", e);
+            if (hasCause(e, HttpTimeoutException.class) || hasCause(e, SocketTimeoutException.class)
+                    || elapsed.compareTo(timeout) >= 0) {
+                log.warn("LLM 응답 시간 초과 - baseUrl: {}, timeout: {}", baseUrl, timeout);
+                return new LlmException("LLM 응답 시간(" + format(timeout) + ")이 초과됐어요. "
+                        + "서버 상태를 확인하거나 더 작은 모델을 사용해주세요.", e);
             }
         }
         log.warn("LLM 호출 실패 - baseUrl: {}", baseUrl, e);
-        return new LlmException("LLM 호출 중 오류가 발생했어요. (" + e.getMostSpecificCause().getMessage() + ")", e);
+        return new LlmException("LLM 서버와 통신하지 못했어요. 서버 상태와 IP·포트를 확인해주세요.", e);
     }
 
-    /**
-     * 오류 응답에서 사용자에게 보여줄 원인 메시지만 꺼낸다.
-     * <p>
-     * JSON 응답의 {@code error}(문자열 또는 {@code error.message}) / {@code message} 필드만 사용하고,
-     * 그 외 응답 본문(HTML 등)은 노출하지 않는다. 연결 테스트로 사설망의 다른 서비스 응답 내용이 새어 나가는 것을 막기 위함이다.
-     * </p>
-     */
-    private static String errorDetail(RestClientResponseException e) {
-        MediaType contentType = e.getResponseHeaders() == null ? null : e.getResponseHeaders().getContentType();
-        if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
-            return "";
-        }
-        try {
-            JsonNode root = JsonMapper.shared().readTree(e.getResponseBodyAsString());
-            JsonNode error = root.path("error");
-            String detail = error.isString() ? error.asString()
-                    : error.path("message").isString() ? error.path("message").asString()
-                    : root.path("message").isString() ? root.path("message").asString()
-                    : "";
-            detail = detail.strip();
-            return detail.length() <= MAX_ERROR_BODY_LENGTH ? detail : detail.substring(0, MAX_ERROR_BODY_LENGTH) + "…";
-        } catch (JacksonException ignored) {
-            return "";
-        }
+    private static Duration elapsed(long startNanos) {
+        return Duration.ofNanos(System.nanoTime() - startNanos);
+    }
+
+    private static String format(Duration duration) {
+        return duration.toMillis() % 1000 == 0 ? duration.toSeconds() + "초" : duration.toMillis() + "ms";
     }
 
     private static boolean hasCause(Throwable e, Class<? extends Throwable> type) {
