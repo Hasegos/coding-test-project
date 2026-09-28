@@ -1,11 +1,11 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.api;
 
 import io.dev.coding_test.common.exception.NotFoundException;
-import io.dev.coding_test.common.security.LoginUserId;
-import io.dev.coding_test.dto.LlmConnectionTestRequest;
-import io.dev.coding_test.dto.LlmConnectionTestResponse;
-import io.dev.coding_test.dto.LlmSettingRequest;
-import io.dev.coding_test.dto.LlmSettingResponse;
+import io.dev.coding_test.dto.setting.LlmConnectionTestRequest;
+import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
+import io.dev.coding_test.dto.setting.LlmSettingResponse;
+import io.dev.coding_test.security.core.LoginUserId;
 import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.service.MemoSummaryService;
 import jakarta.validation.Valid;
