@@ -1,11 +1,14 @@
 package io.dev.coding_test.common.config;
 
 import io.dev.coding_test.common.handler.SecurityAccessDeniedHandler;
+import io.dev.coding_test.common.security.LoginMember;
+import io.dev.coding_test.support.TestLoginContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -13,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -23,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * CSRF 차단과 보안 헤더를 검증한다.
- * 기본 테스트 설정(모든 요청에 CSRF 토큰 추가)을 쓰지 않도록 MockMvc를 직접 만든다.
+ * 기본 테스트 설정(모든 요청에 CSRF 토큰 추가)을 쓰지 않도록 MockMvc를 직접 만들고, 로그인한 상태로 요청한다.
  */
 @SpringBootTest
 @Transactional
@@ -37,7 +41,12 @@ class SecurityConfigTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        LoginMember member = TestLoginContext.DEFAULT_MEMBER;
+        mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .defaultRequest(get("/").with(authentication(
+                        UsernamePasswordAuthenticationToken.authenticated(member, null, member.getAuthorities()))))
+                .build();
     }
 
     @Test
