@@ -6,7 +6,7 @@ import io.dev.coding_test.model.enums.LlmProvider;
  * 사용자가 LLM 설정 화면에서 입력한 로컬 LLM 서버 접속 정보.
  *
  * @param provider LLM 런타임 (Ollama / LM Studio)
- * @param host     로컬 전용 IPv4 주소 (사설 대역 · Tailscale 대역만 허용)
+ * @param host     로컬 전용 IP 주소 (사설망 · Tailscale 대역만 허용, IPv6 가능)
  * @param port     포트
  * @param model    요약에 사용할 모델명, 연결 테스트(모델 목록 조회) 시에는 비어 있을 수 있음
  * @param apiKey   인증 토큰, 없으면 {@code null}
@@ -16,10 +16,11 @@ public record LlmConnection(LlmProvider provider, String host, int port, String 
     /**
      * 호출할 LLM 서버의 기본 주소를 반환한다.
      *
-     * @return {@code http://host:port}
+     * @return {@code http://host:port}, IPv6면 {@code http://[host]:port}
      */
     public String baseUrl() {
-        return "http://" + host + ":" + port;
+        String authority = host.indexOf(':') >= 0 ? "[" + host + "]" : host;
+        return "http://" + authority + ":" + port;
     }
 
     /**
