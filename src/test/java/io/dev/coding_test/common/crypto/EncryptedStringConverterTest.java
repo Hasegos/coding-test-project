@@ -3,7 +3,7 @@ package io.dev.coding_test.common.crypto;
 import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.service.LlmSettingService;
-import io.dev.coding_test.support.TestMembers;
+import io.dev.coding_test.support.TestUsers;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class EncryptedStringConverterTest {
     private LlmSettingService llmSettingService;
 
     @Autowired
-    private TestMembers testMembers;
+    private TestUsers testUsers;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -37,11 +37,11 @@ class EncryptedStringConverterTest {
     @Autowired
     private EntityManager entityManager;
 
-    private Long memberId;
+    private Long userId;
 
     @BeforeEach
     void setUp() {
-        memberId = testMembers.create("tester").getMemberId();
+        userId = testUsers.create("tester").getUserId();
     }
 
     @Test
@@ -50,24 +50,24 @@ class EncryptedStringConverterTest {
 
         String stored = storedApiKey();
         assertThat(stored).startsWith(SecretCipher.PREFIX).doesNotContain("sk-lm-secret-token");
-        assertThat(llmSettingService.findConnection(memberId)).get()
+        assertThat(llmSettingService.findConnection(userId)).get()
                 .satisfies(connection -> assertThat(connection.apiKey()).isEqualTo("sk-lm-secret-token"));
     }
 
     @Test
     void 암호화_이전에_평문으로_저장된_값은_그대로_읽고_다시_저장하면_암호화한다() {
         save("temp");
-        jdbcTemplate.update("UPDATE llm_setting SET api_key = ? WHERE member_id = ?", "legacy-plain-key", memberId);
+        jdbcTemplate.update("UPDATE llm_setting SET api_key = ? WHERE user_id = ?", "legacy-plain-key", userId);
         entityManager.clear();
 
-        assertThat(llmSettingService.findConnection(memberId)).get()
+        assertThat(llmSettingService.findConnection(userId)).get()
                 .satisfies(connection -> assertThat(connection.apiKey()).isEqualTo("legacy-plain-key"));
 
-        llmSettingService.save(memberId, request(null));
+        llmSettingService.save(userId, request(null));
         entityManager.flush();
         assertThat(storedApiKey()).startsWith(SecretCipher.PREFIX);
         entityManager.clear();
-        assertThat(llmSettingService.findConnection(memberId)).get()
+        assertThat(llmSettingService.findConnection(userId)).get()
                 .satisfies(connection -> assertThat(connection.apiKey()).isEqualTo("legacy-plain-key"));
     }
 
@@ -75,16 +75,16 @@ class EncryptedStringConverterTest {
     void 다른_키로_암호화된_값은_저장된_키가_없는_것으로_본다() {
         save("temp");
         String otherKey = Base64.getEncoder().encodeToString("fedcba9876543210fedcba9876543210".getBytes());
-        jdbcTemplate.update("UPDATE llm_setting SET api_key = ? WHERE member_id = ?",
-                new SecretCipher(otherKey).encrypt("other-key-secret"), memberId);
+        jdbcTemplate.update("UPDATE llm_setting SET api_key = ? WHERE user_id = ?",
+                new SecretCipher(otherKey).encrypt("other-key-secret"), userId);
         entityManager.clear();
 
-        assertThat(llmSettingService.getSetting(memberId)).get()
+        assertThat(llmSettingService.getSetting(userId)).get()
                 .satisfies(setting -> assertThat(setting.hasApiKey()).isFalse());
     }
 
     private void save(String apiKey) {
-        llmSettingService.save(memberId, request(apiKey));
+        llmSettingService.save(userId, request(apiKey));
         entityManager.flush();
     }
 
@@ -93,6 +93,6 @@ class EncryptedStringConverterTest {
     }
 
     private String storedApiKey() {
-        return jdbcTemplate.queryForObject("SELECT api_key FROM llm_setting WHERE member_id = ?", String.class, memberId);
+        return jdbcTemplate.queryForObject("SELECT api_key FROM llm_setting WHERE user_id = ?", String.class, userId);
     }
 }

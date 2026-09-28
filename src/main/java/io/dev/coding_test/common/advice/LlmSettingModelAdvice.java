@@ -1,6 +1,6 @@
 package io.dev.coding_test.common.advice;
 
-import io.dev.coding_test.common.security.LoginMemberId;
+import io.dev.coding_test.common.security.LoginUserId;
 import io.dev.coding_test.controller.MemoPageController;
 import io.dev.coding_test.controller.SettingPageController;
 import io.dev.coding_test.service.LlmSettingService;
@@ -22,7 +22,7 @@ public class LlmSettingModelAdvice {
     private final LlmSettingService llmSettingService;
 
     @ModelAttribute("llmConfigured")
-    public boolean llmConfigured(@LoginMemberId Long memberId) {
-        return llmSettingService.isConfigured(memberId);
+    public boolean llmConfigured(@LoginUserId Long userId) {
+        return llmSettingService.isConfigured(userId);
     }
 }

@@ -2,9 +2,9 @@ package io.dev.coding_test.controller;
 
 import io.dev.coding_test.common.config.SecurityConfig;
 import io.dev.coding_test.common.exception.DuplicateUsernameException;
-import io.dev.coding_test.common.security.LoginMember;
+import io.dev.coding_test.common.security.CustomUserPrincipal;
 import io.dev.coding_test.dto.SignupRequest;
-import io.dev.coding_test.service.MemberService;
+import io.dev.coding_test.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,29 +26,29 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final MemberService memberService;
+    private final UserService userService;
 
     /**
      * 로그인 화면을 렌더링한다. 이미 로그인했으면 메모 목록으로 보낸다.
      *
-     * @param loginMember 로그인한 회원, 없으면 {@code null}
+     * @param loginUser 로그인한 회원, 없으면 {@code null}
      * @return 로그인 뷰 이름 또는 메모 목록 리다이렉트
      */
     @GetMapping(SecurityConfig.LOGIN_PATH)
-    public String loginForm(@AuthenticationPrincipal LoginMember loginMember) {
-        return loginMember != null ? "redirect:/memos" : "auth/login";
+    public String loginForm(@AuthenticationPrincipal CustomUserPrincipal loginUser) {
+        return loginUser != null ? "redirect:/memos" : "auth/login";
     }
 
     /**
      * 회원가입 화면을 렌더링한다. 이미 로그인했으면 메모 목록으로 보낸다.
      *
-     * @param loginMember 로그인한 회원, 없으면 {@code null}
-     * @param model       뷰에 전달할 데이터 모델
+     * @param loginUser 로그인한 회원, 없으면 {@code null}
+     * @param model     뷰에 전달할 데이터 모델
      * @return 회원가입 뷰 이름 또는 메모 목록 리다이렉트
      */
     @GetMapping(SecurityConfig.SIGNUP_PATH)
-    public String signupForm(@AuthenticationPrincipal LoginMember loginMember, Model model) {
-        if (loginMember != null) {
+    public String signupForm(@AuthenticationPrincipal CustomUserPrincipal loginUser, Model model) {
+        if (loginUser != null) {
             return "redirect:/memos";
         }
         model.addAttribute("signupRequest", new SignupRequest());
@@ -68,11 +68,11 @@ public class AuthController {
                          BindingResult bindingResult,
                          RedirectAttributes redirectAttributes) {
         if (!bindingResult.hasErrors()) {
-            memberService.validate(request, bindingResult);
+            userService.validate(request, bindingResult);
         }
         if (!bindingResult.hasErrors()) {
             try {
-                memberService.signup(request);
+                userService.signup(request);
             } catch (DuplicateUsernameException e) {
                 bindingResult.rejectValue("username", "duplicate", e.getMessage());
             }

@@ -1,6 +1,6 @@
 package io.dev.coding_test.controller;
 
-import io.dev.coding_test.common.security.LoginMember;
+import io.dev.coding_test.common.security.CustomUserPrincipal;
 import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.model.enums.LlmProvider;
@@ -8,7 +8,7 @@ import io.dev.coding_test.repository.MemoRepository;
 import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.support.TestLoginContext;
-import io.dev.coding_test.support.TestMembers;
+import io.dev.coding_test.support.TestUsers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,13 +37,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class MemberIsolationTest {
+class UserIsolationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
-    private TestMembers testMembers;
+    private TestUsers testUsers;
 
     @Autowired
     private TestLoginContext testLoginContext;
@@ -57,15 +57,15 @@ class MemberIsolationTest {
     @Autowired
     private LlmSettingService llmSettingService;
 
-    private LoginMember owner;
-    private LoginMember other;
+    private CustomUserPrincipal owner;
+    private CustomUserPrincipal other;
     private Long ownerMemoId;
 
     @BeforeEach
     void setUp() {
-        owner = testMembers.create("owner");
-        other = testMembers.create("other");
-        ownerMemoId = memoService.create(owner.getMemberId(), new MemoRequest("주인 메모", "비밀 본문")).memoId();
+        owner = testUsers.create("owner");
+        other = testUsers.create("other");
+        ownerMemoId = memoService.create(owner.getUserId(), new MemoRequest("주인 메모", "비밀 본문")).memoId();
         testLoginContext.loginAs(other);
     }
 
@@ -108,7 +108,7 @@ class MemberIsolationTest {
 
     @Test
     void 목록과_검색에는_내_메모만_나온다() throws Exception {
-        memoService.create(other.getMemberId(), new MemoRequest("내 메모", "본문"));
+        memoService.create(other.getUserId(), new MemoRequest("내 메모", "본문"));
 
         mockMvc.perform(get("/api/memos"))
                 .andExpect(jsonPath("$.totalElements").value(1))
@@ -122,7 +122,7 @@ class MemberIsolationTest {
 
     @Test
     void LLM_설정은_회원마다_따로_저장된다() throws Exception {
-        llmSettingService.save(owner.getMemberId(), new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
+        llmSettingService.save(owner.getUserId(), new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
                 "qwen2.5-7b-instruct", "owner-secret", false));
 
         mockMvc.perform(get("/api/settings/llm")).andExpect(status().isNotFound());
@@ -136,12 +136,12 @@ class MemberIsolationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasApiKey").value(false));
 
-        assertThat(llmSettingService.getSetting(owner.getMemberId())).get()
+        assertThat(llmSettingService.getSetting(owner.getUserId())).get()
                 .satisfies(setting -> {
                     assertThat(setting.host()).isEqualTo("100.66.180.73");
                     assertThat(setting.hasApiKey()).isTrue();
                 });
-        assertThat(llmSettingService.getSetting(other.getMemberId())).get()
+        assertThat(llmSettingService.getSetting(other.getUserId())).get()
                 .satisfies(setting -> assertThat(setting.host()).isEqualTo("192.168.0.20"));
     }
 }

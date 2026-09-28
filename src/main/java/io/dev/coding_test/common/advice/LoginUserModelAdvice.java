@@ -1,6 +1,6 @@
 package io.dev.coding_test.common.advice;
 
-import io.dev.coding_test.common.security.LoginMember;
+import io.dev.coding_test.common.security.CustomUserPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -12,10 +12,10 @@ import org.springframework.web.bind.annotation.ModelAttribute;
  * </p>
  */
 @ControllerAdvice
-public class LoginMemberModelAdvice {
+public class LoginUserModelAdvice {
 
     @ModelAttribute("loginNickname")
-    public String loginNickname(@AuthenticationPrincipal LoginMember loginMember) {
-        return loginMember == null ? null : loginMember.getNickname();
+    public String loginNickname(@AuthenticationPrincipal CustomUserPrincipal loginUser) {
+        return loginUser == null ? null : loginUser.getNickname();
     }
 }

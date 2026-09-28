@@ -4,7 +4,7 @@ import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.support.TestLoginContext;
-import io.dev.coding_test.support.TestMembers;
+import io.dev.coding_test.support.TestUsers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,17 +28,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MemoPageControllerTest {
 
     @Autowired
-    private TestMembers testMembers;
+    private TestUsers testUsers;
 
     @Autowired
     private TestLoginContext testLoginContext;
 
     /** 로그인한 회원 (테스트마다 새로 가입) */
-    private Long memberId;
+    private Long userId;
 
     @BeforeEach
-    void loginMember() {
-        memberId = testMembers.login("tester").getMemberId();
+    void loginUser() {
+        userId = testUsers.login("tester").getUserId();
     }
 
     @AfterEach
@@ -91,7 +91,7 @@ class MemoPageControllerTest {
 
     @Test
     void 목록_페이지에_메모와_검색어를_렌더링한다() throws Exception {
-        memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/memos").param("keyword", "회의"))
                 .andExpect(status().isOk())
@@ -109,7 +109,7 @@ class MemoPageControllerTest {
 
     @Test
     void 상세_페이지에_원문을_렌더링한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "<script>alert(1)</script>"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "<script>alert(1)</script>"));
 
         mockMvc.perform(get("/memos/{id}", memo.memoId()))
                 .andExpect(status().isOk())
@@ -133,7 +133,7 @@ class MemoPageControllerTest {
 
     @Test
     void 수정_페이지에_기존_내용을_채워서_보여준다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("초안", "초안 본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("초안", "초안 본문"));
 
         mockMvc.perform(get("/memos/{id}/edit", memo.memoId()))
                 .andExpect(status().isOk())
@@ -146,7 +146,7 @@ class MemoPageControllerTest {
 
     @Test
     void 수정_성공시_상세_페이지로_리다이렉트한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("초안", "초안 본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("초안", "초안 본문"));
 
         mockMvc.perform(post("/memos/{id}", memo.memoId())
                         .param("title", "최종")
@@ -158,7 +158,7 @@ class MemoPageControllerTest {
 
     @Test
     void 수정_검증_실패시_수정_폼을_다시_보여준다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("초안", "초안 본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("초안", "초안 본문"));
 
         mockMvc.perform(post("/memos/{id}", memo.memoId())
                         .param("title", "최종")
@@ -171,7 +171,7 @@ class MemoPageControllerTest {
 
     @Test
     void 삭제_성공시_목록으로_리다이렉트한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("삭제할 메모", "본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("삭제할 메모", "본문"));
 
         mockMvc.perform(post("/memos/{id}/delete", memo.memoId()))
                 .andExpect(status().is3xxRedirection())
@@ -188,7 +188,7 @@ class MemoPageControllerTest {
 
     @Test
     void 상세_페이지에_AI_요약_패널을_렌더링한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/memos/{id}", memo.memoId()))
                 .andExpect(status().isOk())
@@ -199,7 +199,7 @@ class MemoPageControllerTest {
 
     @Test
     void 요약_패널_fragment만_렌더링한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/memos/{id}/summary", memo.memoId()))
                 .andExpect(status().isOk())
@@ -210,7 +210,7 @@ class MemoPageControllerTest {
 
     @Test
     void 재요약_요청후_상세_페이지로_리다이렉트한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(post("/memos/{id}/summary", memo.memoId()))
                 .andExpect(status().is3xxRedirection())
@@ -220,7 +220,7 @@ class MemoPageControllerTest {
 
     @Test
     void 목록_카드에_요약_상태를_표시한다() throws Exception {
-        memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(containsString("badge--pending")));
@@ -228,7 +228,7 @@ class MemoPageControllerTest {
 
     @Test
     void 목록과_상세에서_제목의_HTML을_이스케이프한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("<img src=x onerror=alert(1)>", "본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("<img src=x onerror=alert(1)>", "본문"));
 
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(containsString("&lt;img src=x onerror=alert(1)&gt;")))

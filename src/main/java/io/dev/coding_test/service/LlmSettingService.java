@@ -10,7 +10,7 @@ import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.LlmSetting;
 import io.dev.coding_test.repository.LlmSettingRepository;
-import io.dev.coding_test.repository.MemberRepository;
+import io.dev.coding_test.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,40 +35,40 @@ import java.util.Optional;
 public class LlmSettingService {
 
     private final LlmSettingRepository llmSettingRepository;
-    private final MemberRepository memberRepository;
+    private final UserRepository userRepository;
     private final LlmClientFactory llmClientFactory;
 
     /**
      * 회원의 접속 설정을 조회한다.
      *
-     * @param memberId 회원 ID
+     * @param userId 회원 ID
      * @return 저장된 설정, 아직 설정하지 않았으면 {@code Optional.empty()}
      */
     @Transactional(readOnly = true)
-    public Optional<LlmSettingResponse> getSetting(Long memberId) {
-        return llmSettingRepository.findById(memberId).map(LlmSettingResponse::from);
+    public Optional<LlmSettingResponse> getSetting(Long userId) {
+        return llmSettingRepository.findById(userId).map(LlmSettingResponse::from);
     }
 
     /**
      * 회원의 LLM 서버 접속 설정이 저장되어 있는지 확인한다.
      *
-     * @param memberId 회원 ID
+     * @param userId 회원 ID
      * @return 설정되어 있으면 {@code true}
      */
     @Transactional(readOnly = true)
-    public boolean isConfigured(Long memberId) {
-        return llmSettingRepository.existsById(memberId);
+    public boolean isConfigured(Long userId) {
+        return llmSettingRepository.existsById(userId);
     }
 
     /**
      * 요약에 사용할 회원의 접속 정보를 조회한다.
      *
-     * @param memberId 회원 ID (메모 작성자)
+     * @param userId 회원 ID (메모 작성자)
      * @return 접속 정보, 아직 설정하지 않았으면 {@code Optional.empty()}
      */
     @Transactional(readOnly = true)
-    public Optional<LlmConnection> findConnection(Long memberId) {
-        return llmSettingRepository.findById(memberId)
+    public Optional<LlmConnection> findConnection(Long userId) {
+        return llmSettingRepository.findById(userId)
                 .map(setting -> new LlmConnection(setting.getProvider(), setting.getHost(),
                         setting.getPort(), setting.getModel(), setting.getApiKey()));
     }
@@ -79,15 +79,15 @@ public class LlmSettingService {
      * API Key를 비워두면 기존 토큰을 유지하고, {@code clearApiKey}가 참이면 토큰을 삭제한다.
      * </p>
      *
-     * @param memberId 회원 ID
-     * @param request  접속 설정 저장 요청 (검증 완료)
+     * @param userId  회원 ID
+     * @param request 접속 설정 저장 요청 (검증 완료)
      * @return 저장된 설정
      */
     @Transactional
-    public LlmSettingResponse save(Long memberId, LlmSettingRequest request) {
-        LlmSetting setting = llmSettingRepository.findById(memberId).orElseGet(() -> {
+    public LlmSettingResponse save(Long userId, LlmSettingRequest request) {
+        LlmSetting setting = llmSettingRepository.findById(userId).orElseGet(() -> {
             LlmSetting created = new LlmSetting();
-            created.setMember(memberRepository.getReferenceById(memberId));
+            created.setUser(userRepository.getReferenceById(userId));
             return created;
         });
 
@@ -103,7 +103,7 @@ public class LlmSettingService {
         setting.setUpdatedAt(TimeUtil.now());
 
         llmSettingRepository.save(setting);
-        log.info("LLM 설정 저장 - memberId: {}, provider: {}, host: {}, port: {}, model: {}", memberId,
+        log.info("LLM 설정 저장 - userId: {}, provider: {}, host: {}, port: {}, model: {}", userId,
                 setting.getProvider(), setting.getHost(), setting.getPort(), setting.getModel());
         return LlmSettingResponse.from(setting);
     }
@@ -114,15 +114,15 @@ public class LlmSettingService {
      * API Key를 비워두면 회원이 저장한 토큰을 사용한다. 연결 실패도 예외가 아니라 {@code ok = false} 결과로 돌려준다.
      * </p>
      *
-     * @param memberId 회원 ID
-     * @param request  연결 테스트 요청 (검증 완료)
+     * @param userId  회원 ID
+     * @param request 연결 테스트 요청 (검증 완료)
      * @return 연결 테스트 결과
      */
     @Transactional(readOnly = true)
-    public LlmConnectionTestResponse testConnection(Long memberId, LlmConnectionTestRequest request) {
+    public LlmConnectionTestResponse testConnection(Long userId, LlmConnectionTestRequest request) {
         String apiKey = hasText(request.apiKey())
                 ? request.apiKey().strip()
-                : llmSettingRepository.findById(memberId).map(LlmSetting::getApiKey).orElse(null);
+                : llmSettingRepository.findById(userId).map(LlmSetting::getApiKey).orElse(null);
         LlmConnection connection = new LlmConnection(request.provider(), request.host().strip(),
                 request.port(), "", apiKey);
 

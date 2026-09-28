@@ -7,7 +7,7 @@ import io.dev.coding_test.dto.MemoListRow;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.model.Memo;
-import io.dev.coding_test.repository.MemberRepository;
+import io.dev.coding_test.repository.UserRepository;
 import io.dev.coding_test.repository.MemoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,29 +37,29 @@ public class MemoService {
     private static final Sort LATEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt", "memoId");
 
     private final MemoRepository memoRepository;
-    private final MemberRepository memberRepository;
+    private final UserRepository userRepository;
     private final MemoSummaryService memoSummaryService;
 
     /**
      * 메모를 저장한다. 제목/본문의 앞뒤 공백은 제거한다.
      * 저장 트랜잭션이 커밋되면 로컬 LLM 요약이 비동기로 시작된다.
      *
-     * @param memberId 작성자 회원 ID
-     * @param request  메모 작성 요청
+     * @param userId  작성자 회원 ID
+     * @param request 메모 작성 요청
      * @return 저장된 메모
      */
     @Transactional
-    public MemoResponse create(Long memberId, MemoRequest request) {
+    public MemoResponse create(Long userId, MemoRequest request) {
         LocalDateTime now = TimeUtil.now();
         Memo memo = new Memo();
-        memo.setMember(memberRepository.getReferenceById(memberId));
+        memo.setUser(userRepository.getReferenceById(userId));
         memo.setTitle(request.getTitle().strip());
         memo.setContent(request.getContent().strip());
         memo.setCreatedAt(now);
         memo.setUpdatedAt(now);
 
         memoRepository.save(memo);
-        log.info("메모 저장 - memberId: {}, memoId: {}", memberId, memo.getMemoId());
+        log.info("메모 저장 - userId: {}, memoId: {}", userId, memo.getMemoId());
         memoSummaryService.requestSummary(memo);
         return MemoResponse.from(memo);
     }
@@ -67,14 +67,14 @@ public class MemoService {
     /**
      * 메모 단건을 조회한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
      * @return 메모
      * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
     @Transactional(readOnly = true)
-    public MemoResponse getMemo(Long memberId, Long memoId) {
-        Memo memo = memoRepository.findWithTodosByMemoIdAndMemberMemberId(memoId, memberId)
+    public MemoResponse getMemo(Long userId, Long memoId) {
+        Memo memo = memoRepository.findWithTodosByMemoIdAndUserUserId(memoId, userId)
                 .orElseThrow(() -> notFound(memoId));
         return MemoResponse.from(memo);
     }
@@ -86,14 +86,14 @@ public class MemoService {
      * 목록에 필요한 컬럼만 projection으로 조회한다(본문 앞부분, 할 일 개수).
      * </p>
      *
-     * @param memberId 로그인한 회원 ID
-     * @param keyword  검색 키워드, null 또는 공백이면 전체 조회
-     * @param page     페이지 번호 (0부터 시작)
-     * @param size     페이지 크기
+     * @param userId  로그인한 회원 ID
+     * @param keyword 검색 키워드, null 또는 공백이면 전체 조회
+     * @param page    페이지 번호 (0부터 시작)
+     * @param size    페이지 크기
      * @return 메모 목록 Page 객체
      */
     @Transactional(readOnly = true)
-    public Page<MemoListItem> getMemos(Long memberId, String keyword, int page, int size) {
+    public Page<MemoListItem> getMemos(Long userId, String keyword, int page, int size) {
         PageRequest pageable = PageRequest.of(
                 Math.max(page, 0),
                 Math.clamp(size, 1, MAX_PAGE_SIZE),
@@ -102,8 +102,8 @@ public class MemoService {
 
         String trimmed = keyword == null ? "" : keyword.strip();
         Page<MemoListRow> rows = trimmed.isEmpty()
-                ? memoRepository.findListRows(memberId, pageable)
-                : memoRepository.searchListRows(memberId, likePattern(trimmed), pageable);
+                ? memoRepository.findListRows(userId, pageable)
+                : memoRepository.searchListRows(userId, likePattern(trimmed), pageable);
         return rows.map(MemoListItem::from);
     }
 
@@ -123,15 +123,15 @@ public class MemoService {
      * 메모 제목과 본문을 수정한다. 제목/본문의 앞뒤 공백은 제거한다.
      * 내용이 실제로 바뀐 경우에만 기존 요약을 비우고 다시 요약한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
-     * @param request  메모 수정 요청
+     * @param userId  로그인한 회원 ID
+     * @param memoId  메모 ID
+     * @param request 메모 수정 요청
      * @return 수정된 메모
      * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
     @Transactional
-    public MemoResponse update(Long memberId, Long memoId, MemoRequest request) {
-        Memo memo = findMemo(memberId, memoId);
+    public MemoResponse update(Long userId, Long memoId, MemoRequest request) {
+        Memo memo = findMemo(userId, memoId);
         String title = request.getTitle().strip();
         String content = request.getContent().strip();
         if (memo.getTitle().equals(title) && memo.getContent().equals(content)) {
@@ -152,26 +152,26 @@ public class MemoService {
     /**
      * 메모를 삭제한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
      * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
     @Transactional
-    public void delete(Long memberId, Long memoId) {
-        memoRepository.delete(findMemo(memberId, memoId));
-        log.info("메모 삭제 - memberId: {}, memoId: {}", memberId, memoId);
+    public void delete(Long userId, Long memoId) {
+        memoRepository.delete(findMemo(userId, memoId));
+        log.info("메모 삭제 - userId: {}, memoId: {}", userId, memoId);
     }
 
     /**
      * 회원의 메모 엔티티를 조회한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
      * @return 메모 엔티티
      * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
      */
-    private Memo findMemo(Long memberId, Long memoId) {
-        return memoRepository.findByMemoIdAndMemberMemberId(memoId, memberId).orElseThrow(() -> notFound(memoId));
+    private Memo findMemo(Long userId, Long memoId) {
+        return memoRepository.findByMemoIdAndUserUserId(memoId, userId).orElseThrow(() -> notFound(memoId));
     }
 
     private static NotFoundException notFound(Long memoId) {

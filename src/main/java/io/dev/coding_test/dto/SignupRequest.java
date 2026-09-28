@@ -12,7 +12,7 @@ import lombok.ToString;
 /**
  * 회원가입 요청 (화면 폼 바인딩).
  * <p>
- * 비밀번호 확인 일치와 아이디 중복은 {@code MemberService}가 검사한다.
+ * 비밀번호 확인 일치와 아이디 중복은 {@code UserService}가 검사한다.
  * 비밀번호는 BCrypt 입력 한도(72바이트) 안에 들도록 영문·숫자·특수문자(ASCII)로 제한한다.
  * </p>
  */

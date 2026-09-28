@@ -1,7 +1,7 @@
 package io.dev.coding_test.controller;
 
 import io.dev.coding_test.common.util.PageRangeUtil;
-import io.dev.coding_test.common.security.LoginMemberId;
+import io.dev.coding_test.common.security.LoginUserId;
 import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
@@ -40,18 +40,18 @@ public class MemoPageController {
     /**
      * 메모 목록 페이지를 렌더링한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param keyword  제목/본문 검색 키워드 (선택)
-     * @param page     페이지 번호 (0부터 시작)
-     * @param model    뷰에 전달할 데이터 모델
+     * @param userId  로그인한 회원 ID
+     * @param keyword 제목/본문 검색 키워드 (선택)
+     * @param page    페이지 번호 (0부터 시작)
+     * @param model   뷰에 전달할 데이터 모델
      * @return 메모 목록 뷰 이름
      */
     @GetMapping
-    public String list(@LoginMemberId Long memberId,
+    public String list(@LoginUserId Long userId,
                        @RequestParam(required = false) String keyword,
                        @RequestParam(defaultValue = "0") int page,
                        Model model) {
-        Page<MemoListItem> memos = memoService.getMemos(memberId, keyword, page, PAGE_SIZE);
+        Page<MemoListItem> memos = memoService.getMemos(userId, keyword, page, PAGE_SIZE);
         model.addAttribute("memos", memos);
         model.addAttribute("keyword", keyword == null ? "" : keyword.strip());
         model.addAttribute("pageNumbers",
@@ -62,30 +62,30 @@ public class MemoPageController {
     /**
      * 메모 상세 페이지를 렌더링한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
-     * @param model    뷰에 전달할 데이터 모델
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
+     * @param model  뷰에 전달할 데이터 모델
      * @return 메모 상세 뷰 이름
      */
     @GetMapping("/{memoId}")
-    public String detail(@LoginMemberId Long memberId,
+    public String detail(@LoginUserId Long userId,
                          @PathVariable Long memoId, Model model) {
-        model.addAttribute("memo", memoService.getMemo(memberId, memoId));
+        model.addAttribute("memo", memoService.getMemo(userId, memoId));
         return "memo/detail";
     }
 
     /**
      * 메모 수정 페이지를 렌더링한다. 기존 제목/본문을 폼에 채워 전달한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
-     * @param model    뷰에 전달할 데이터 모델
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
+     * @param model  뷰에 전달할 데이터 모델
      * @return 메모 수정 폼 뷰 이름
      */
     @GetMapping("/{memoId}/edit")
-    public String editForm(@LoginMemberId Long memberId,
+    public String editForm(@LoginUserId Long userId,
                            @PathVariable Long memoId, Model model) {
-        MemoResponse memo = memoService.getMemo(memberId, memoId);
+        MemoResponse memo = memoService.getMemo(userId, memoId);
         model.addAttribute("memoId", memoId);
         model.addAttribute("memoRequest", new MemoRequest(memo.title(), memo.content()));
         return "memo/form";
@@ -95,7 +95,7 @@ public class MemoPageController {
      * 메모를 수정하고 상세 페이지로 이동한다(PRG).
      * 검증 실패 시 입력값을 유지한 채 수정 폼을 다시 렌더링한다.
      *
-     * @param memberId           로그인한 회원 ID
+     * @param userId             로그인한 회원 ID
      * @param memoId             메모 ID
      * @param request            메모 수정 요청
      * @param bindingResult      검증 결과
@@ -104,7 +104,7 @@ public class MemoPageController {
      * @return 상세 페이지 리다이렉트 또는 수정 폼 뷰 이름
      */
     @PostMapping("/{memoId}")
-    public String update(@LoginMemberId Long memberId,
+    public String update(@LoginUserId Long userId,
                          @PathVariable Long memoId,
                          @Valid @ModelAttribute("memoRequest") MemoRequest request,
                          BindingResult bindingResult,
@@ -114,7 +114,7 @@ public class MemoPageController {
             model.addAttribute("memoId", memoId);
             return "memo/form";
         }
-        memoService.update(memberId, memoId, request);
+        memoService.update(userId, memoId, request);
         redirectAttributes.addFlashAttribute("toast", "메모를 수정했어요.");
         return "redirect:/memos/" + memoId;
     }
@@ -122,15 +122,15 @@ public class MemoPageController {
     /**
      * 메모를 삭제하고 목록 페이지로 이동한다.
      *
-     * @param memberId           로그인한 회원 ID
+     * @param userId             로그인한 회원 ID
      * @param memoId             메모 ID
      * @param redirectAttributes 리다이렉트 후 보여줄 메시지
      * @return 목록 페이지 리다이렉트
      */
     @PostMapping("/{memoId}/delete")
-    public String delete(@LoginMemberId Long memberId,
+    public String delete(@LoginUserId Long userId,
                          @PathVariable Long memoId, RedirectAttributes redirectAttributes) {
-        memoService.delete(memberId, memoId);
+        memoService.delete(userId, memoId);
         redirectAttributes.addFlashAttribute("toast", "메모를 삭제했어요.");
         return "redirect:/memos";
     }
@@ -151,21 +151,21 @@ public class MemoPageController {
      * 메모를 저장하고 상세 페이지로 이동한다(PRG).
      * 검증 실패 시 입력값을 유지한 채 작성 폼을 다시 렌더링한다.
      *
-     * @param memberId           로그인한 회원 ID
+     * @param userId             로그인한 회원 ID
      * @param request            메모 작성 요청
      * @param bindingResult      검증 결과
      * @param redirectAttributes 리다이렉트 후 보여줄 메시지
      * @return 상세 페이지 리다이렉트 또는 작성 폼 뷰 이름
      */
     @PostMapping
-    public String create(@LoginMemberId Long memberId,
+    public String create(@LoginUserId Long userId,
                          @Valid @ModelAttribute("memoRequest") MemoRequest request,
                          BindingResult bindingResult,
                          RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
             return "memo/form";
         }
-        MemoResponse memo = memoService.create(memberId, request);
+        MemoResponse memo = memoService.create(userId, request);
         redirectAttributes.addFlashAttribute("toast", "메모를 저장했어요.");
         return "redirect:/memos/" + memo.memoId();
     }
@@ -174,30 +174,30 @@ public class MemoPageController {
      * 메모 상세 페이지의 AI 요약 패널 fragment를 렌더링한다.
      * 화면 스크립트가 요약 상태가 바뀌었을 때 패널을 교체하는 데 사용한다.
      *
-     * @param memberId 로그인한 회원 ID
-     * @param memoId   메모 ID
-     * @param model    뷰에 전달할 데이터 모델
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
+     * @param model  뷰에 전달할 데이터 모델
      * @return 요약 패널 fragment
      */
     @GetMapping("/{memoId}/summary")
-    public String summaryPanel(@LoginMemberId Long memberId,
+    public String summaryPanel(@LoginUserId Long userId,
                                @PathVariable Long memoId, Model model) {
-        model.addAttribute("memo", memoService.getMemo(memberId, memoId));
+        model.addAttribute("memo", memoService.getMemo(userId, memoId));
         return "memo/summary :: panel";
     }
 
     /**
      * 메모 재요약을 요청하고 상세 페이지로 이동한다. (JavaScript 미사용 환경 대비)
      *
-     * @param memberId           로그인한 회원 ID
+     * @param userId             로그인한 회원 ID
      * @param memoId             메모 ID
      * @param redirectAttributes 리다이렉트 후 보여줄 메시지
      * @return 상세 페이지 리다이렉트
      */
     @PostMapping("/{memoId}/summary")
-    public String retrySummary(@LoginMemberId Long memberId,
+    public String retrySummary(@LoginUserId Long userId,
                                @PathVariable Long memoId, RedirectAttributes redirectAttributes) {
-        memoSummaryService.retry(memberId, memoId);
+        memoSummaryService.retry(userId, memoId);
         redirectAttributes.addFlashAttribute("toast", "요약을 다시 요청했어요.");
         return "redirect:/memos/" + memoId;
     }

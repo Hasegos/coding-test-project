@@ -23,13 +23,13 @@ import java.time.LocalDateTime;
 public class LlmSetting {
 
     @Id
-    @Column(name = "member_id")
-    private Long memberId;
+    @Column(name = "user_id")
+    private Long userId;
 
     @MapsId
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", foreignKey = @ForeignKey(name = "fk_llm_setting_member"))
-    private Member member;
+    @JoinColumn(name = "user_id", foreignKey = @ForeignKey(name = "fk_llm_setting_user"))
+    private User user;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "provider", nullable = false, length = 20)
