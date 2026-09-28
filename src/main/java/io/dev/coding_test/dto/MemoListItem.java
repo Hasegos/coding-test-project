@@ -1,23 +1,28 @@
 package io.dev.coding_test.dto;
 
 import io.dev.coding_test.model.Memo;
+import io.dev.coding_test.model.SummaryStatus;
 
 import java.time.LocalDateTime;
 
 /**
  * 메모 목록 항목.
  *
- * @param memoId    메모 ID
- * @param title     제목
- * @param preview   본문 미리보기 (앞부분 {@value #PREVIEW_LENGTH}자)
- * @param createdAt 작성일시
- * @param updatedAt 최종 수정일시
+ * @param memoId        메모 ID
+ * @param title         제목
+ * @param preview       본문 미리보기 (앞부분 {@value #PREVIEW_LENGTH}자)
+ * @param createdAt     작성일시
+ * @param updatedAt     최종 수정일시
+ * @param summaryStatus AI 요약 진행 상태
+ * @param todoCount     추출된 할 일 개수
  */
 public record MemoListItem(Long memoId,
                            String title,
                            String preview,
                            LocalDateTime createdAt,
-                           LocalDateTime updatedAt) {
+                           LocalDateTime updatedAt,
+                           SummaryStatus summaryStatus,
+                           int todoCount) {
 
     public static final int PREVIEW_LENGTH = 140;
 
@@ -27,7 +32,9 @@ public record MemoListItem(Long memoId,
                 memo.getTitle(),
                 preview(memo.getContent()),
                 memo.getCreatedAt(),
-                memo.getUpdatedAt()
+                memo.getUpdatedAt(),
+                memo.getSummaryStatus(),
+                memo.getTodos().size()
         );
     }
 
