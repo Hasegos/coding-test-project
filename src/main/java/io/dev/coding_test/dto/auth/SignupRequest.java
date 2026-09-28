@@ -1,4 +1,4 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
