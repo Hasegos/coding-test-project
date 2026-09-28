@@ -1,4 +1,4 @@
-package io.dev.coding_test.common.security;
+package io.dev.coding_test.security.core;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
