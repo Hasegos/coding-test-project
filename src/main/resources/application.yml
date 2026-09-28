@@ -52,6 +52,12 @@ spring:
         format_sql: true
         default_batch_fetch_size: 100
 
+# LLM API Key 암호화 키 (AES-256, 32바이트 Base64) — 생성: openssl rand -base64 32
+# 키를 바꾸면 기존에 저장한 API Key는 복호화할 수 없으므로 다시 입력해야 한다.
+app:
+  crypto:
+    secret-key: ${API_KEY_ENCRYPTION_KEY:}
+
 # 로컬 LLM 호출 공통 설정 — 서버 IP·포트·모델은 화면의 'LLM 설정'에서 입력(DB 저장)
 llm:
   temperature: 0.2
