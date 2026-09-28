@@ -1,8 +1,8 @@
 package io.dev.coding_test.common.advice;
 
-import io.dev.coding_test.common.security.LoginUserId;
-import io.dev.coding_test.controller.MemoPageController;
-import io.dev.coding_test.controller.SettingPageController;
+import io.dev.coding_test.controller.view.MemoPageController;
+import io.dev.coding_test.controller.view.SettingPageController;
+import io.dev.coding_test.security.core.LoginUserId;
 import io.dev.coding_test.service.LlmSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.ControllerAdvice;

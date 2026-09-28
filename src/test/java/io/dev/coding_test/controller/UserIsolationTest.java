@@ -1,10 +1,10 @@
 package io.dev.coding_test.controller;
 
-import io.dev.coding_test.common.security.CustomUserPrincipal;
-import io.dev.coding_test.dto.LlmSettingRequest;
-import io.dev.coding_test.dto.MemoRequest;
+import io.dev.coding_test.dto.memo.MemoRequest;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.repository.MemoRepository;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
 import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.support.TestLoginContext;

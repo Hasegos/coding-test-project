@@ -2,7 +2,7 @@ package io.dev.coding_test.event;
 
 import io.dev.coding_test.common.config.AsyncConfig;
 import io.dev.coding_test.common.util.SummaryStatusUtil;
-import io.dev.coding_test.dto.MemoRevision;
+import io.dev.coding_test.dto.memo.MemoRevision;
 import io.dev.coding_test.repository.MemoRepository;
 import io.dev.coding_test.service.MemoSummaryService;
 import lombok.extern.slf4j.Slf4j;

@@ -1,10 +1,10 @@
 package io.dev.coding_test.service;
 
 import io.dev.coding_test.common.util.TimeUtil;
-import io.dev.coding_test.dto.LlmConnectionTestRequest;
-import io.dev.coding_test.dto.LlmConnectionTestResponse;
-import io.dev.coding_test.dto.LlmSettingRequest;
-import io.dev.coding_test.dto.LlmSettingResponse;
+import io.dev.coding_test.dto.setting.LlmConnectionTestRequest;
+import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
+import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.llm.client.LlmClientFactory;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;

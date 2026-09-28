@@ -1,9 +1,9 @@
 package io.dev.coding_test.support;
 
-import io.dev.coding_test.common.security.CustomUserPrincipal;
 import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.model.User;
 import io.dev.coding_test.repository.UserRepository;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

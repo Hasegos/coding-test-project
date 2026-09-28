@@ -1,12 +1,11 @@
 package io.dev.coding_test.service;
 
-import io.dev.coding_test.dto.LlmConnectionTestRequest;
-import io.dev.coding_test.dto.LlmConnectionTestResponse;
-import io.dev.coding_test.dto.LlmSettingRequest;
-import io.dev.coding_test.dto.LlmSettingResponse;
+import io.dev.coding_test.dto.setting.LlmConnectionTestRequest;
+import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
+import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
-import io.dev.coding_test.model.LlmSetting;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.repository.LlmSettingRepository;
 import io.dev.coding_test.support.FakeLlmClient;

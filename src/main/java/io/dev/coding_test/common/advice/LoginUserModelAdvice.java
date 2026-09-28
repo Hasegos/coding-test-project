@@ -1,6 +1,6 @@
 package io.dev.coding_test.common.advice;
 
-import io.dev.coding_test.common.security.CustomUserPrincipal;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;

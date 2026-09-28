@@ -1,8 +1,8 @@
 package io.dev.coding_test.repository;
 
-import io.dev.coding_test.dto.MemoListItem;
-import io.dev.coding_test.dto.MemoRequest;
-import io.dev.coding_test.dto.MemoResponse;
+import io.dev.coding_test.dto.memo.MemoListItem;
+import io.dev.coding_test.dto.memo.MemoRequest;
+import io.dev.coding_test.dto.memo.MemoResponse;
 import io.dev.coding_test.model.Memo;
 import io.dev.coding_test.model.MemoTodo;
 import io.dev.coding_test.service.MemoService;

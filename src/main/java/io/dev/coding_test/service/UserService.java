@@ -2,7 +2,7 @@ package io.dev.coding_test.service;
 
 import io.dev.coding_test.common.exception.DuplicateUsernameException;
 import io.dev.coding_test.common.util.TimeUtil;
-import io.dev.coding_test.dto.SignupRequest;
+import io.dev.coding_test.dto.auth.SignupRequest;
 import io.dev.coding_test.model.User;
 import io.dev.coding_test.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
