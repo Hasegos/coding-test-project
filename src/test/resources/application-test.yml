@@ -13,3 +13,6 @@ spring:
     hibernate:
       ddl-auto: create-drop
     show-sql: false
+    properties:
+      hibernate:
+        generate_statistics: true # 쿼리 수 검증(MemoQueryCountTest)용
