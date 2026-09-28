@@ -4,6 +4,7 @@ import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 로컬 LLM 서버 하나(접속 정보 + 모델)에 요청하는 클라이언트.
@@ -24,12 +25,13 @@ public interface LlmClient {
     SummaryResult summarize(String title, String content);
 
     /**
-     * LLM 서버에 로드된(사용 가능한) 모델 목록을 조회한다. 연결 테스트에도 사용한다.
+     * LLM 서버에서 사용할 수 있는 채팅 모델 목록을 조회한다. 연결 테스트에도 사용한다.
+     * 임베딩·음성 등 채팅에 쓸 수 없는 모델은 이름으로 걸러낸다.
      *
-     * @return 모델명 목록
-     * @throws LlmException LLM 서버에 연결할 수 없거나 응답이 올바르지 않은 경우
+     * @return 모델명 목록(정렬, 중복 제거), 서버가 모델 목록 API를 지원하지 않으면 {@code Optional.empty()}
+     * @throws LlmException LLM 서버에 연결할 수 없거나 오류·비정상 응답을 받은 경우
      */
-    List<String> listModels();
+    Optional<List<String>> listModels();
 
     /**
      * 요약에 사용하는 모델명을 반환한다.
