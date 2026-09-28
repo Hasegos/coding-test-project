@@ -401,5 +401,5 @@ POSTGRESQL_PASSWORD=비밀번호
     1. 런타임 선택 — Ollama(기본 포트 11434) / LM Studio(기본 포트 1234)
     2. 서버 IP 입력 — 같은 PC 여도 `127.0.0.1` 대신 그 PC 의 사설 IP(`192.168.x.x` 등), Tailscale 이면 `tailscale ip -4` 로 확인한 `100.x.x.x`
     3. **연결 테스트 · 모델 불러오기** → 모델 선택 → 저장
-+ LM Studio 는 Developer 탭에서 서버를 시작하고 Server Settings 의 *Serve on Local Network* 를 켭니다. Ollama 를 다른 PC 에서 접속하려면 `OLLAMA_HOST=0.0.0.0` 으로 실행합니다.
++ LM Studio 는 Developer 탭에서 서버를 시작하고 Server Settings 의 *Serve on Local Network* 를 켭니다. 화면의 `Reachable at` 주소(`http://IP:1234`)를 서버 IP 칸에 그대로 붙여넣으면 IP·포트가 자동으로 나뉩니다. Ollama 를 다른 PC 에서 접속하려면 `OLLAMA_HOST=0.0.0.0` 으로 실행합니다.
 + LLM 서버가 꺼져 있어도 애플리케이션은 정상 기동되며, 해당 메모는 **요약 실패**로 표시되고 서버를 켠 뒤 **다시 시도**로 재요약할 수 있습니다.
