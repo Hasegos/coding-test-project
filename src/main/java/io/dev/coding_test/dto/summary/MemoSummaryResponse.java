@@ -1,4 +1,4 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.summary;
 
 import io.dev.coding_test.common.util.SummaryStatusUtil;
 import io.dev.coding_test.model.Memo;
