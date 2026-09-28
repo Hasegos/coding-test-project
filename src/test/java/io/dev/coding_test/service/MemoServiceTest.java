@@ -123,4 +123,14 @@ class MemoServiceTest {
         assertThatThrownBy(() -> memoService.delete(9_999L))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void SQL_인젝션_문자열은_일반_검색어로_처리한다() {
+        memoService.create(new MemoRequest("일반 메모", "본문"));
+
+        assertThat(memoService.getMemos("' OR '1'='1", 0, 10).getContent()).isEmpty();
+        assertThat(memoService.getMemos("'; DROP TABLE memo; --", 0, 10).getContent()).isEmpty();
+        assertThat(memoService.getMemos("_", 0, 10).getContent()).isEmpty();
+        assertThat(memoRepository.count()).isEqualTo(1);
+    }
 }
