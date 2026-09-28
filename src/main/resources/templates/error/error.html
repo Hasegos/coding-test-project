@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/head :: head('오류')}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/pages/error.css}">
+</head>
+<body>
+<div th:replace="~{fragments/header :: header}"></div>
+
+<main class="container error-page">
+    <p class="error-page__code" th:text="${status} ?: 'ERROR'">404</p>
+    <h1 class="error-page__title">앗, 문제가 발생했어요.</h1>
+    <p class="error-page__message" th:text="${message}">
+        요청하신 페이지를 찾을 수 없거나 서버에 오류가 발생했어요.
+    </p>
+    <a class="btn btn--primary" th:href="@{/}">홈으로 돌아가기</a>
+</main>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>
