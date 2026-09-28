@@ -3,8 +3,10 @@ package io.dev.coding_test.controller;
 import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
+import io.dev.coding_test.dto.MemoSummaryResponse;
 import io.dev.coding_test.dto.PageResponse;
 import io.dev.coding_test.service.MemoService;
+import io.dev.coding_test.service.MemoSummaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,9 +31,10 @@ import java.net.URI;
 public class MemoApiController {
 
     private final MemoService memoService;
+    private final MemoSummaryService memoSummaryService;
 
     /**
-     * 메모를 작성한다.
+     * 메모를 작성한다. 저장 후 로컬 LLM 요약이 비동기로 시작된다.
      *
      * @param request 메모 작성 요청
      * @return 201 Created, 저장된 메모
@@ -90,5 +93,28 @@ public class MemoApiController {
     public ResponseEntity<Void> delete(@PathVariable Long memoId) {
         memoService.delete(memoId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 메모의 AI 요약 결과(상태, 요약문, 할 일 목록)를 조회한다.
+     * 화면은 상태가 PENDING/PROCESSING인 동안 이 API를 주기적으로 호출한다.
+     *
+     * @param memoId 메모 ID
+     * @return 요약 결과, 메모가 없으면 404
+     */
+    @GetMapping("/{memoId}/summary")
+    public MemoSummaryResponse getSummary(@PathVariable Long memoId) {
+        return memoSummaryService.getSummary(memoId);
+    }
+
+    /**
+     * 메모 재요약을 요청한다. 이미 요약 중이면 현재 상태를 그대로 반환한다.
+     *
+     * @param memoId 메모 ID
+     * @return 202 Accepted, 요청 후 요약 상태
+     */
+    @PostMapping("/{memoId}/summary")
+    public ResponseEntity<MemoSummaryResponse> retrySummary(@PathVariable Long memoId) {
+        return ResponseEntity.accepted().body(memoSummaryService.retry(memoId));
     }
 }
