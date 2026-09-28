@@ -1,6 +1,6 @@
-package io.dev.coding_test.common.handler;
+package io.dev.coding_test.security.handler;
 
-import io.dev.coding_test.dto.ErrorResponse;
+import io.dev.coding_test.dto.common.ErrorResponse;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
