@@ -40,6 +40,19 @@
 }
 .header__link:hover { color: var(--text); background: var(--surface-2); }
 
+.header__link--settings { display: inline-flex; align-items: center; gap: 6px; }
+.header__link-icon { width: 16px; height: 16px; }
+
+.header__dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-left: 5px;
+    vertical-align: 2px;
+    border-radius: 50%;
+    background: var(--warning);
+}
+
 .header__theme {
     width: 34px; height: 34px;
     display: grid; place-items: center;
@@ -59,5 +72,7 @@
 
 @media (max-width: 520px) {
     .header__link { display: none; }
+    .header__link--settings { display: inline-flex; }
+    .header__link-text { display: none; }
     .header__logo-text { display: none; }
 }
