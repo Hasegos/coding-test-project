@@ -10,18 +10,19 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * 연결 테스트(모델 목록 조회) 요청. 저장 전 입력값으로 LLM 서버에 연결해본다.
+ * 연결 테스트 요청. 저장 전 입력값으로 LLM 서버에 연결해 모델 목록을 조회해본다.
  *
  * @param provider LLM 런타임
- * @param host     로컬 전용 IPv4 주소
+ * @param host     로컬 전용 IP 주소 (사설망 · Tailscale 대역)
  * @param port     포트
  * @param apiKey   인증 토큰, 비어 있으면 저장된 토큰 사용
  */
-public record LlmModelsRequest(
+public record LlmConnectionTestRequest(
         @NotNull(message = "LLM 런타임을 선택해주세요.")
         LlmProvider provider,
 
         @NotBlank(message = "LLM 서버 IP를 입력해주세요.")
+        @Size(max = 45, message = "IP 주소가 너무 길어요.")
         @LocalIp
         String host,
 
