@@ -48,3 +48,9 @@ CREATE TABLE IF NOT EXISTS llm_setting (
     CONSTRAINT ck_llm_setting_provider CHECK (provider IN ('OLLAMA', 'LMSTUDIO')),
     CONSTRAINT ck_llm_setting_port CHECK (port BETWEEN 1 AND 65535)
 );
+
+-- (선택) 메모가 많아져 제목·본문 검색(LIKE '%키워드%')이 느려지면 trigram 인덱스를 추가한다.
+-- pg_trgm 확장 설치 권한이 필요하다.
+-- CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- CREATE INDEX IF NOT EXISTS idx_memo_title_trgm   ON memo USING gin (lower(title) gin_trgm_ops);
+-- CREATE INDEX IF NOT EXISTS idx_memo_content_trgm ON memo USING gin (lower(content) gin_trgm_ops);
