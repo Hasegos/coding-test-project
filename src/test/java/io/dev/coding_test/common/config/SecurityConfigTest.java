@@ -2,7 +2,7 @@ package io.dev.coding_test.common.config;
 
 import io.dev.coding_test.common.handler.SecurityAccessDeniedHandler;
 import io.dev.coding_test.common.security.LoginMember;
-import io.dev.coding_test.support.TestLoginContext;
+import io.dev.coding_test.support.TestMembers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,11 +37,14 @@ class SecurityConfigTest {
     @Autowired
     private WebApplicationContext context;
 
+    @Autowired
+    private TestMembers testMembers;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        LoginMember member = TestLoginContext.DEFAULT_MEMBER;
+        LoginMember member = testMembers.create("tester");
         mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .defaultRequest(get("/").with(authentication(
