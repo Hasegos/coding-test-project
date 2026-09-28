@@ -1,12 +1,12 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.api;
 
-import io.dev.coding_test.common.security.LoginUserId;
-import io.dev.coding_test.dto.MemoListItem;
-import io.dev.coding_test.dto.MemoRequest;
-import io.dev.coding_test.dto.MemoResponse;
-import io.dev.coding_test.dto.MemoSummaryResponse;
-import io.dev.coding_test.dto.MemoSummaryStatusResponse;
-import io.dev.coding_test.dto.PageResponse;
+import io.dev.coding_test.dto.common.PageResponse;
+import io.dev.coding_test.dto.memo.MemoListItem;
+import io.dev.coding_test.dto.memo.MemoRequest;
+import io.dev.coding_test.dto.memo.MemoResponse;
+import io.dev.coding_test.dto.summary.MemoSummaryResponse;
+import io.dev.coding_test.dto.summary.MemoSummaryStatusResponse;
+import io.dev.coding_test.security.core.LoginUserId;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.service.MemoSummaryService;
 import jakarta.validation.Valid;
