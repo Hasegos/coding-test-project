@@ -1,6 +1,7 @@
 package io.dev.coding_test.llm.provider.lmstudio;
 
 import io.dev.coding_test.llm.config.LlmProperties;
+import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
@@ -16,6 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -25,8 +27,9 @@ class LmStudioLlmClientTest {
 
     private static final String BASE_URL = "http://lmstudio.test";
 
-    private final LlmProperties properties =
-            new LlmProperties(LlmProvider.LMSTUDIO, BASE_URL, "qwen2.5-7b-instruct", "", 0.2, null, null, 1, 10);
+    private final LlmProperties properties = new LlmProperties(0.2, null, null, 1, 10);
+    private final LlmConnection connection =
+            new LlmConnection(LlmProvider.LMSTUDIO, "127.0.0.1", 1234, "qwen2.5-7b-instruct", null);
 
     private MockRestServiceServer server;
     private LmStudioLlmClient client;
@@ -35,7 +38,7 @@ class LmStudioLlmClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new LmStudioLlmClient(builder.build(), properties,
+        client = new LmStudioLlmClient(builder.build(), connection, properties,
                 new SummaryResultParser(JsonMapper.builder().build()));
     }
 
@@ -95,5 +98,27 @@ class LmStudioLlmClientTest {
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
                 .isInstanceOf(LlmException.class)
                 .hasMessageContaining("LM Studio 응답 형식");
+    }
+
+    @Test
+    void 모델_목록을_조회하고_중복_제거_후_정렬한다() {
+        server.expect(requestTo(BASE_URL + "/v1/models"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"object": "list", "data": [{"id": "qwen2.5-vl-7b-instruct", "object": "model"}, {"id": "text-embedding-nomic-embed-text-v1.5"}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.listModels()).containsExactly("qwen2.5-vl-7b-instruct", "text-embedding-nomic-embed-text-v1.5");
+        server.verify();
+    }
+
+    @Test
+    void 모델_목록_조회_실패는_LlmException으로_변환한다() {
+        server.expect(requestTo(BASE_URL + "/v1/models"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("unauthorized"));
+
+        assertThatThrownBy(() -> client.listModels())
+                .isInstanceOf(LlmException.class)
+                .hasMessageContaining("HTTP 401");
     }
 }
