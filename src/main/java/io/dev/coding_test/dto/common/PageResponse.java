@@ -1,4 +1,4 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.common;
 
 import org.springframework.data.domain.Page;
 
