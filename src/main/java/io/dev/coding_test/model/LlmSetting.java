@@ -1,5 +1,6 @@
 package io.dev.coding_test.model;
 
+import io.dev.coding_test.common.crypto.EncryptedStringConverter;
 import io.dev.coding_test.model.enums.LlmProvider;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -43,7 +44,9 @@ public class LlmSetting {
     @Column(name = "model", nullable = false, length = 100)
     private String model;
 
-    @Column(name = "api_key", length = 200)
+    /** 인증 토큰. DB에는 AES-256-GCM 암호문으로 저장한다. (평문 최대 200자 → 암호문 최대 약 300자) */
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "api_key", length = 400)
     private String apiKey;
 
     @Column(name = "updated_at", nullable = false)

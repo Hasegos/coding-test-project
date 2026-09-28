@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS llm_setting (
     host        VARCHAR(45)     NOT NULL,                       -- 로컬 전용 IP (사설망 · Tailscale 대역, IPv6 포함)
     port        INTEGER         NOT NULL,
     model       VARCHAR(100)    NOT NULL,
-    api_key     VARCHAR(200),
+    api_key     VARCHAR(400),                                   -- AES-256-GCM 암호문 (v1:...)
     updated_at  TIMESTAMP(6)    NOT NULL,
     CONSTRAINT fk_llm_setting_member FOREIGN KEY (member_id) REFERENCES member (member_id) ON DELETE CASCADE,
     CONSTRAINT ck_llm_setting_provider CHECK (provider IN ('OLLAMA', 'LMSTUDIO')),
@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS llm_setting (
 
 -- 이전 버전(host VARCHAR(15), IPv4 전용)으로 만든 DB는 IPv6 주소를 저장할 수 있도록 길이를 늘린다.
 ALTER TABLE llm_setting ALTER COLUMN host TYPE VARCHAR(45);
+-- API Key 암호화 이전 버전 DB는 암호문을 저장할 수 있도록 길이를 늘린다.
+ALTER TABLE llm_setting ALTER COLUMN api_key TYPE VARCHAR(400);
 
 -- (선택) 메모가 많아져 제목·본문 검색(LIKE '%키워드%')이 느려지면 trigram 인덱스를 추가한다.
 -- pg_trgm 확장 설치 권한이 필요하다.
