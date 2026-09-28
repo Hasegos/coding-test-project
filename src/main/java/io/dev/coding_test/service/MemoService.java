@@ -1,11 +1,16 @@
 package io.dev.coding_test.service;
 
+import io.dev.coding_test.common.exception.NotFoundException;
+import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.model.Memo;
 import io.dev.coding_test.repository.MemoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class MemoService {
+
+    public static final int MAX_PAGE_SIZE = 50;
+
+    private static final Sort LATEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt", "memoId");
 
     private final MemoRepository memoRepository;
 
@@ -30,5 +39,55 @@ public class MemoService {
         Memo memo = memoRepository.save(new Memo(request.getTitle().strip(), request.getContent().strip()));
         log.info("메모 저장 - memoId: {}", memo.getMemoId());
         return MemoResponse.from(memo);
+    }
+
+    /**
+     * 메모 단건을 조회한다.
+     *
+     * @param memoId 메모 ID
+     * @return 메모
+     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     */
+    @Transactional(readOnly = true)
+    public MemoResponse getMemo(Long memoId) {
+        return MemoResponse.from(findMemo(memoId));
+    }
+
+    /**
+     * 메모 목록을 최신순으로 조회한다. 키워드가 있으면 제목/본문에 포함된 메모만 조회한다.
+     * <p>
+     * 음수 페이지는 0으로, 페이지 크기는 1~{@value #MAX_PAGE_SIZE} 범위로 보정한다.
+     * </p>
+     *
+     * @param keyword 검색 키워드, null 또는 공백이면 전체 조회
+     * @param page    페이지 번호 (0부터 시작)
+     * @param size    페이지 크기
+     * @return 메모 목록 Page 객체
+     */
+    @Transactional(readOnly = true)
+    public Page<MemoListItem> getMemos(String keyword, int page, int size) {
+        PageRequest pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.clamp(size, 1, MAX_PAGE_SIZE),
+                LATEST_FIRST
+        );
+
+        String trimmed = keyword == null ? "" : keyword.strip();
+        Page<Memo> memos = trimmed.isEmpty()
+                ? memoRepository.findAll(pageable)
+                : memoRepository.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCase(trimmed, trimmed, pageable);
+        return memos.map(MemoListItem::from);
+    }
+
+    /**
+     * 메모 엔티티를 조회한다.
+     *
+     * @param memoId 메모 ID
+     * @return 메모 엔티티
+     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     */
+    private Memo findMemo(Long memoId) {
+        return memoRepository.findById(memoId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId));
     }
 }
