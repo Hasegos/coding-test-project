@@ -1,5 +1,6 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.config;
 
+import io.dev.coding_test.model.enums.LlmProvider;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

@@ -1,5 +1,7 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.parser;
 
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 

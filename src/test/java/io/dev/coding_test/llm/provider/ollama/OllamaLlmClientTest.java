@@ -1,5 +1,10 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.provider.ollama;
 
+import io.dev.coding_test.llm.config.LlmProperties;
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.parser.SummaryResultParser;
+import io.dev.coding_test.model.enums.LlmProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
