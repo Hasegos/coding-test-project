@@ -1,9 +1,9 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.view;
 
-import io.dev.coding_test.common.handler.SecurityAuthenticationEntryPoint;
-import io.dev.coding_test.common.security.CustomUserPrincipal;
 import io.dev.coding_test.model.User;
 import io.dev.coding_test.repository.UserRepository;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
+import io.dev.coding_test.security.handler.SecurityAuthenticationEntryPoint;
 import io.dev.coding_test.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
