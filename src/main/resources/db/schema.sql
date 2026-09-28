@@ -2,6 +2,10 @@
 -- AI Memo PostgreSQL 스키마
 -- 운영(prod) 프로파일은 ddl-auto: validate 이므로 최초 배포 전에 이 스크립트로 테이블을 생성한다.
 -- psql -U $POSTGRESQL_USERNAME -d $POSTGRESQL_DATABASE -f schema.sql
+--
+-- 회원 기능 이전 버전으로 만든 DB는 memo(작성자 컬럼)와 llm_setting(기본키)의 구조가 다르다.
+-- 데이터를 지운 상태라면 아래 테이블을 삭제한 뒤 이 스크립트를 다시 실행한다.
+--   DROP TABLE IF EXISTS memo_todo, memo, llm_setting;
 -- =====================================================================
 
 -- 회원 (비밀번호는 BCrypt 해시만 저장)
@@ -17,6 +21,7 @@ CREATE TABLE IF NOT EXISTS member (
 -- 메모
 CREATE TABLE IF NOT EXISTS memo (
     memo_id         BIGSERIAL       PRIMARY KEY,
+    member_id       BIGINT          NOT NULL,                    -- 작성자 (작성자만 조회·수정·삭제)
     title           VARCHAR(200)    NOT NULL,
     content         TEXT            NOT NULL,
     revision        BIGINT          NOT NULL DEFAULT 0,          -- 제목/본문 수정 시 증가 (오래된 요약 결과 폐기 기준)
@@ -27,11 +32,12 @@ CREATE TABLE IF NOT EXISTS memo (
     summarized_at   TIMESTAMP(6),
     created_at      TIMESTAMP(6)    NOT NULL,
     updated_at      TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT fk_memo_member FOREIGN KEY (member_id) REFERENCES member (member_id) ON DELETE CASCADE,
     CONSTRAINT ck_memo_summary_status CHECK (summary_status IN ('PENDING', 'PROCESSING', 'DONE', 'FAILED'))
 );
 
--- 목록 최신순 정렬
-CREATE INDEX IF NOT EXISTS idx_memo_created_at ON memo (created_at DESC, memo_id DESC);
+-- 회원별 목록 최신순 정렬
+CREATE INDEX IF NOT EXISTS idx_memo_member_created_at ON memo (member_id, created_at DESC, memo_id DESC);
 
 -- 기동 시 미완료 요약(PENDING/PROCESSING) 재요청 조회
 CREATE INDEX IF NOT EXISTS idx_memo_summary_status ON memo (summary_status);
@@ -46,15 +52,16 @@ CREATE TABLE IF NOT EXISTS memo_todo (
 
 CREATE INDEX IF NOT EXISTS idx_memo_todo_memo_id ON memo_todo (memo_id, sort_order);
 
--- 로컬 LLM 서버 접속 설정 (LLM 설정 화면에서 저장, 단일 행)
+-- 로컬 LLM 서버 접속 설정 (LLM 설정 화면에서 저장, 회원당 1행)
 CREATE TABLE IF NOT EXISTS llm_setting (
-    setting_id  BIGINT          PRIMARY KEY,                    -- 항상 1
+    member_id   BIGINT          PRIMARY KEY,                    -- 회원 ID
     provider    VARCHAR(20)     NOT NULL,                       -- OLLAMA | LMSTUDIO
     host        VARCHAR(45)     NOT NULL,                       -- 로컬 전용 IP (사설망 · Tailscale 대역, IPv6 포함)
     port        INTEGER         NOT NULL,
     model       VARCHAR(100)    NOT NULL,
     api_key     VARCHAR(200),
     updated_at  TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT fk_llm_setting_member FOREIGN KEY (member_id) REFERENCES member (member_id) ON DELETE CASCADE,
     CONSTRAINT ck_llm_setting_provider CHECK (provider IN ('OLLAMA', 'LMSTUDIO')),
     CONSTRAINT ck_llm_setting_port CHECK (port BETWEEN 1 AND 65535)
 );

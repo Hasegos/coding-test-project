@@ -4,6 +4,9 @@ import io.dev.coding_test.dto.LlmConnectionTestResponse;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.support.FakeLlmClient;
+import io.dev.coding_test.support.TestLoginContext;
+import io.dev.coding_test.support.TestMembers;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,6 +35,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SettingApiControllerTest {
 
     @Autowired
+    private TestMembers testMembers;
+
+    @Autowired
+    private TestLoginContext testLoginContext;
+
+    /** 로그인한 회원 (테스트마다 새로 가입) */
+    private Long memberId;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -39,7 +51,13 @@ class SettingApiControllerTest {
 
     @BeforeEach
     void setUp() {
+        memberId = testMembers.login("tester").getMemberId();
         fakeLlmClient.reset();
+    }
+
+    @AfterEach
+    void resetLogin() {
+        testLoginContext.reset();
     }
 
     @Test

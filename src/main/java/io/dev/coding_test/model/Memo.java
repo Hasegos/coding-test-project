@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 사용자가 작성한 메모 엔티티.
+ * 회원이 작성한 메모 엔티티.
  * <p>
  * 로컬 LLM이 생성한 요약({@code summary})과 할 일 목록({@code todos})을 함께 가진다.
  * {@code revision}은 제목/본문이 바뀔 때마다 증가하며, 비동기 요약 결과가
@@ -30,6 +30,11 @@ public class Memo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "memo_id")
     private Long memoId;
+
+    /** 작성자. 메모는 작성자만 조회·수정·삭제할 수 있고, 요약은 작성자의 LLM 설정으로 실행한다. */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "member_id", nullable = false, foreignKey = @ForeignKey(name = "fk_memo_member"))
+    private Member member;
 
     @Column(name = "title", nullable = false, length = 200)
     private String title;

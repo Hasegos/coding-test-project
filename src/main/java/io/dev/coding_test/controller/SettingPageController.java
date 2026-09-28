@@ -1,5 +1,6 @@
 package io.dev.coding_test.controller;
 
+import io.dev.coding_test.common.security.LoginMemberId;
 import io.dev.coding_test.dto.LlmSettingRequest;
 import io.dev.coding_test.dto.LlmSettingResponse;
 import io.dev.coding_test.model.enums.LlmProvider;
@@ -30,18 +31,20 @@ public class SettingPageController {
     /**
      * LLM 설정 화면을 렌더링한다. 저장된 설정이 있으면 폼에 채워서 보여준다. (API Key 값은 채우지 않음)
      *
-     * @param model 뷰에 전달할 데이터 모델
+     * @param memberId 로그인한 회원 ID
+     * @param model    뷰에 전달할 데이터 모델
      * @return LLM 설정 뷰 이름
      */
     @GetMapping
-    public String form(Model model) {
-        LlmSettingRequest request = llmSettingService.getSetting()
+    public String form(@LoginMemberId Long memberId,
+                       Model model) {
+        LlmSettingRequest request = llmSettingService.getSetting(memberId)
                 .map(saved -> new LlmSettingRequest(saved.provider(), saved.host(), saved.port(),
                         saved.model(), null, false))
                 .orElseGet(() -> new LlmSettingRequest(LlmProvider.OLLAMA, null,
                         LlmProvider.OLLAMA.getDefaultPort(), null, null, false));
         model.addAttribute("llmSettingRequest", request);
-        addFormAttributes(model);
+        addFormAttributes(memberId, model);
         return "settings/llm";
     }
 
@@ -49,6 +52,7 @@ public class SettingPageController {
      * 접속 설정을 저장하고, 요약에 실패했던 메모를 다시 요약 요청한다(PRG).
      * 검증 실패 시 입력값을 유지한 채 설정 화면을 다시 렌더링한다.
      *
+     * @param memberId           로그인한 회원 ID
      * @param request            접속 설정 저장 요청
      * @param bindingResult      검증 결과
      * @param model              뷰에 전달할 데이터 모델
@@ -56,25 +60,26 @@ public class SettingPageController {
      * @return 설정 화면 리다이렉트 또는 뷰 이름
      */
     @PostMapping
-    public String save(@Valid @ModelAttribute("llmSettingRequest") LlmSettingRequest request,
+    public String save(@LoginMemberId Long memberId,
+                       @Valid @ModelAttribute("llmSettingRequest") LlmSettingRequest request,
                        BindingResult bindingResult,
                        Model model,
                        RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
             request.setApiKey(null);
-            addFormAttributes(model);
+            addFormAttributes(memberId, model);
             return "settings/llm";
         }
-        llmSettingService.save(request);
-        int retried = memoSummaryService.retryFailed();
+        llmSettingService.save(memberId, request);
+        int retried = memoSummaryService.retryFailed(memberId);
         redirectAttributes.addFlashAttribute("toast", retried > 0
                 ? "LLM 설정을 저장했어요. 실패한 요약 " + retried + "건을 다시 요청했어요."
                 : "LLM 설정을 저장했어요.");
         return "redirect:/settings/llm";
     }
 
-    private void addFormAttributes(Model model) {
+    private void addFormAttributes(Long memberId, Model model) {
         model.addAttribute("providers", LlmProvider.values());
-        model.addAttribute("hasApiKey", llmSettingService.getSetting().map(LlmSettingResponse::hasApiKey).orElse(false));
+        model.addAttribute("hasApiKey", llmSettingService.getSetting(memberId).map(LlmSettingResponse::hasApiKey).orElse(false));
     }
 }
