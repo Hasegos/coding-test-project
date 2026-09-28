@@ -23,8 +23,12 @@
             if (res.status === 204) return null;
             return res.json().catch(function () { return null; }).then(function (data) {
                 if (!res.ok) {
-                    const message = data && data.message ? data.message : 'HTTP ' + res.status;
-                    throw new Error(message);
+                    // 필드 검증 실패(400)면 첫 번째 필드 메시지를 우선 보여준다.
+                    const fieldMessage = data && data.errors && data.errors.length ? data.errors[0].message : null;
+                    const error = new Error(fieldMessage || (data && data.message) || 'HTTP ' + res.status);
+                    error.status = res.status;
+                    error.data = data;
+                    throw error;
                 }
                 return data;
             });
