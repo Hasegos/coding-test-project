@@ -1,6 +1,6 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.api;
 
-import io.dev.coding_test.dto.LlmConnectionTestResponse;
+import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.support.FakeLlmClient;
