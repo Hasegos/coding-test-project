@@ -4,7 +4,7 @@ import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.service.MemoService;
 import io.dev.coding_test.support.TestLoginContext;
-import io.dev.coding_test.support.TestMembers;
+import io.dev.coding_test.support.TestUsers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,17 +30,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MemoApiControllerTest {
 
     @Autowired
-    private TestMembers testMembers;
+    private TestUsers testUsers;
 
     @Autowired
     private TestLoginContext testLoginContext;
 
     /** 로그인한 회원 (테스트마다 새로 가입) */
-    private Long memberId;
+    private Long userId;
 
     @BeforeEach
-    void loginMember() {
-        memberId = testMembers.login("tester").getMemberId();
+    void loginUser() {
+        userId = testUsers.login("tester").getUserId();
     }
 
     @AfterEach
@@ -92,8 +92,8 @@ class MemoApiControllerTest {
 
     @Test
     void 메모_목록을_페이지_형식으로_반환한다() throws Exception {
-        memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
-        memoService.create(memberId, new MemoRequest("장보기", "우유"));
+        memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        memoService.create(userId, new MemoRequest("장보기", "우유"));
 
         mockMvc.perform(get("/api/memos").param("keyword", "회의"))
                 .andExpect(status().isOk())
@@ -105,7 +105,7 @@ class MemoApiControllerTest {
 
     @Test
     void 메모_단건을_조회한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/api/memos/{id}", memo.memoId()))
                 .andExpect(status().isOk())
@@ -122,7 +122,7 @@ class MemoApiControllerTest {
 
     @Test
     void 메모를_수정한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("초안", "초안 본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("초안", "초안 본문"));
 
         mockMvc.perform(put("/api/memos/{id}", memo.memoId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -136,7 +136,7 @@ class MemoApiControllerTest {
 
     @Test
     void 수정_요청이_잘못되면_400을_반환한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("초안", "초안 본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("초안", "초안 본문"));
 
         mockMvc.perform(put("/api/memos/{id}", memo.memoId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -149,7 +149,7 @@ class MemoApiControllerTest {
 
     @Test
     void 메모를_삭제하면_204를_반환하고_이후_조회는_404다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("삭제할 메모", "본문"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("삭제할 메모", "본문"));
 
         mockMvc.perform(delete("/api/memos/{id}", memo.memoId()))
                 .andExpect(status().isNoContent());
@@ -171,7 +171,7 @@ class MemoApiControllerTest {
 
     @Test
     void 메모_조회시_요약_상태를_함께_반환한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/api/memos/{id}", memo.memoId()))
                 .andExpect(status().isOk())
@@ -184,7 +184,7 @@ class MemoApiControllerTest {
 
     @Test
     void 요약_결과를_조회한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/api/memos/{id}/summary", memo.memoId()))
                 .andExpect(status().isOk())
@@ -194,7 +194,7 @@ class MemoApiControllerTest {
 
     @Test
     void 재요약_요청은_202를_반환한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(post("/api/memos/{id}/summary", memo.memoId()))
                 .andExpect(status().isAccepted())
@@ -211,7 +211,7 @@ class MemoApiControllerTest {
 
     @Test
     void 요약_상태만_조회한다() throws Exception {
-        MemoResponse memo = memoService.create(memberId, new MemoRequest("주간 회의", "배포 일정 논의"));
+        MemoResponse memo = memoService.create(userId, new MemoRequest("주간 회의", "배포 일정 논의"));
 
         mockMvc.perform(get("/api/memos/{id}/summary/status", memo.memoId()))
                 .andExpect(status().isOk())
