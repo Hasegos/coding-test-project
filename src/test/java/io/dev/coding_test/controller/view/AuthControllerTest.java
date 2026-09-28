@@ -5,6 +5,7 @@ import io.dev.coding_test.model.User;
 import io.dev.coding_test.model.enums.UserRole;
 import io.dev.coding_test.repository.UserRepository;
 import io.dev.coding_test.security.core.CustomUserPrincipal;
+import io.dev.coding_test.security.exception.LoginLockedException;
 import io.dev.coding_test.security.handler.CustomAuthFailureHandler;
 import io.dev.coding_test.security.handler.SecurityAuthenticationEntryPoint;
 import io.dev.coding_test.service.UserService;
@@ -22,10 +23,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -226,6 +230,36 @@ class AuthControllerTest {
     }
 
     @Test
+    void 비밀번호를_5회_틀리면_맞는_비밀번호도_잠시_거부하고_다른_IP는_로그인할_수_있다() throws Exception {
+        mockMvc.perform(signup(EMAIL, PASSWORD, PASSWORD, "하세고스"));
+        String lockedMessage = LoginLockedException.message(Duration.ofMinutes(5));
+
+        for (int i = 0; i < 4; i++) {
+            assertLoginError(login(EMAIL, "wrong12!@").with(remoteAddr("203.0.113.21")),
+                    CustomAuthFailureHandler.BAD_CREDENTIALS_MESSAGE);
+        }
+        assertLoginError(login(EMAIL, "wrong12!@").with(remoteAddr("203.0.113.21")), lockedMessage);
+        assertLoginError(login(EMAIL, PASSWORD).with(remoteAddr("203.0.113.21")), lockedMessage);
+
+        MockHttpSession other = (MockHttpSession) mockMvc.perform(login(EMAIL, PASSWORD).with(remoteAddr("198.51.100.21")))
+                .andExpect(redirectedUrl("/memos"))
+                .andReturn().getRequest().getSession();
+        assertThat(principal(other).getUsername()).isEqualTo(EMAIL);
+    }
+
+    @Test
+    void 형식이_틀린_입력은_로그인_실패_횟수에_세지_않는다() throws Exception {
+        mockMvc.perform(signup(EMAIL, PASSWORD, PASSWORD, "하세고스"));
+
+        for (int i = 0; i < 6; i++) {
+            assertLoginError(login(EMAIL, "short").with(remoteAddr("203.0.113.22")), AuthPattern.PASSWORD_MESSAGE);
+        }
+
+        mockMvc.perform(login(EMAIL, PASSWORD).with(remoteAddr("203.0.113.22")))
+                .andExpect(redirectedUrl("/memos"));
+    }
+
+    @Test
     void 로그인_요청에도_CSRF_토큰이_필요하다() throws Exception {
         mockMvc.perform(post("/login").param("username", EMAIL).param("password", PASSWORD))
                 .andExpect(status().isForbidden());
@@ -289,7 +323,11 @@ class AuthControllerTest {
     }
 
     private void assertLoginError(String username, String password, String message) throws Exception {
-        MockHttpSession session = (MockHttpSession) mockMvc.perform(login(username, password))
+        assertLoginError(login(username, password), message);
+    }
+
+    private void assertLoginError(RequestBuilder request, String message) throws Exception {
+        MockHttpSession session = (MockHttpSession) mockMvc.perform(request)
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"))
                 .andReturn().getRequest().getSession();
@@ -314,6 +352,13 @@ class AuthControllerTest {
 
     private static MockHttpServletRequestBuilder login(String username, String password) {
         return post("/login").with(csrf()).param("username", username).param("password", password);
+    }
+
+    private static RequestPostProcessor remoteAddr(String ip) {
+        return request -> {
+            request.setRemoteAddr(ip);
+            return request;
+        };
     }
 
     private static CustomUserPrincipal principal(MockHttpSession session) {

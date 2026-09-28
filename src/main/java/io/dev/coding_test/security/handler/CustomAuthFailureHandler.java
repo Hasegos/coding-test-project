@@ -2,6 +2,7 @@ package io.dev.coding_test.security.handler;
 
 import io.dev.coding_test.security.config.SecurityConfig;
 import io.dev.coding_test.security.exception.InvalidLoginFormatException;
+import io.dev.coding_test.security.exception.LoginLockedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -34,7 +35,7 @@ public class CustomAuthFailureHandler implements AuthenticationFailureHandler {
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception) throws IOException {
         String message;
-        if (exception instanceof InvalidLoginFormatException) {
+        if (exception instanceof InvalidLoginFormatException || exception instanceof LoginLockedException) {
             message = exception.getMessage();
         } else if (exception instanceof BadCredentialsException) {
             message = BAD_CREDENTIALS_MESSAGE;

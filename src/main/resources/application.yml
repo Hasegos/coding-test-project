@@ -57,6 +57,10 @@ spring:
 app:
   crypto:
     secret-key: ${API_KEY_ENCRYPTION_KEY:}
+  login-attempt:          # 로그인 시도 제한 — 비밀번호가 틀린 횟수 기준 (형식 오류는 세지 않음)
+    max-failures: 5       # 같은 IP·아이디로 5회 틀리면 잠금
+    ip-max-failures: 20   # 같은 IP에서 아이디를 바꿔 가며 20회 틀리면 그 IP 전체 잠금
+    lock-duration: 5m     # 잠금 시간, 마지막 실패 후 이 시간이 지나면 실패 횟수도 초기화
 
 # 로컬 LLM 호출 공통 설정 — 서버 IP·포트·모델은 화면의 'LLM 설정'에서 입력(DB 저장)
 llm:
