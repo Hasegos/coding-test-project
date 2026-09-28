@@ -33,8 +33,8 @@ public class Memo {
 
     /** 작성자. 메모는 작성자만 조회·수정·삭제할 수 있고, 요약은 작성자의 LLM 설정으로 실행한다. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", nullable = false, foreignKey = @ForeignKey(name = "fk_memo_member"))
-    private Member member;
+    @JoinColumn(name = "user_id", nullable = false, foreignKey = @ForeignKey(name = "fk_memo_user"))
+    private User user;
 
     @Column(name = "title", nullable = false, length = 200)
     private String title;
