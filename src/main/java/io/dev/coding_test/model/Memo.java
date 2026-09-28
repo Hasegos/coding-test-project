@@ -38,6 +38,17 @@ public class Memo {
         this.content = content;
     }
 
+    /**
+     * 메모 제목과 본문을 수정한다.
+     *
+     * @param title   수정할 제목
+     * @param content 수정할 본문
+     */
+    public void update(String title, String content) {
+        this.title = title;
+        this.content = content;
+    }
+
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
