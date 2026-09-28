@@ -1,0 +1,49 @@
+/* ===================== 로그인 · 회원가입 ===================== */
+.auth {
+    display: flex;
+    justify-content: center;
+    padding-top: 48px;
+    padding-bottom: 48px;
+}
+
+.auth__card {
+    width: 100%;
+    max-width: 420px;
+    padding: 32px 28px;
+}
+
+.auth__title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.auth__desc { margin-top: 6px; color: var(--text-muted); font-size: 14px; }
+
+.auth__alert {
+    margin-top: 20px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 14px;
+}
+.auth__alert--error { background: var(--danger-soft); color: var(--danger); }
+
+.auth__form {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.auth__submit { width: 100%; height: 44px; margin-top: 4px; font-size: 15px; }
+
+.auth__switch {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+.auth__switch a { color: var(--primary); font-weight: 700; }
+.auth__switch a:hover { text-decoration: underline; }
+
+@media (max-width: 520px) {
+    .auth { padding-top: 24px; }
+    .auth__card { padding: 24px 18px; }
+}
