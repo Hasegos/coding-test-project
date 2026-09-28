@@ -60,6 +60,12 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        /* 리다이렉트 후 flash 메시지 토스트 */
+        const flash = document.querySelector('[data-flash-toast]');
+        if (flash && flash.dataset.message) {
+            showToast(flash.dataset.message);
+        }
+
         document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const next = currentTheme() === 'dark' ? 'light' : 'dark';
