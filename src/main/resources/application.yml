@@ -56,6 +56,8 @@ spring:
 llm:
   temperature: 0.2
   connect-timeout: 5s
-  read-timeout: 120s
+  read-timeout: 120s      # 요약 요청 전체 제한 시간 (응답 본문 수신까지)
+  models-timeout: 15s     # 모델 목록 조회(연결 테스트) 전체 제한 시간
+  max-response-size: 1MB  # 응답 본문 최대 크기
   concurrency: 1          # 동시 요약 수 (GPU 1장이면 1 권장)
   queue-capacity: 100
