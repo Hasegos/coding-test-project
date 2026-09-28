@@ -1,9 +1,9 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.view;
 
-import io.dev.coding_test.common.config.SecurityConfig;
 import io.dev.coding_test.common.exception.DuplicateUsernameException;
-import io.dev.coding_test.common.security.CustomUserPrincipal;
-import io.dev.coding_test.dto.SignupRequest;
+import io.dev.coding_test.dto.auth.SignupRequest;
+import io.dev.coding_test.security.config.SecurityConfig;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
 import io.dev.coding_test.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
