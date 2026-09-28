@@ -42,6 +42,7 @@
 + 아이디(**이메일**, 100자 이하)·비밀번호(**영문·숫자·특수문자 포함 8~64자**)·비밀번호 확인·닉네임(2~12자)으로 가입합니다.
 + 회원가입과 로그인 모두 같은 정규식으로 **화면(JS)과 서버(Java)** 에서 검증합니다. 로그인은 형식이 틀리면 DB 를 조회하지 않고 바로 안내합니다.
 + 비밀번호는 **BCrypt 해시**로만 저장하고, 세션 기반 폼 로그인을 사용합니다. 로그인 후에는 처음 요청했던 화면으로 돌아갑니다.
++ 비밀번호를 **5회 틀리면 5분간 로그인이 잠깁니다.** (같은 IP·아이디 기준, 같은 IP 에서 아이디를 바꿔 가며 20회 틀려도 잠금) 형식 오류는 세지 않습니다.
 + 로그인하면 우측 상단에 **닉네임 메뉴**가 생기고, 그 안에서 다크/라이트 모드 전환과 로그아웃을 할 수 있습니다.
 + 메모·요약·LLM 설정은 모두 로그인한 회원 기준으로 처리되며, 요약은 **메모 작성자의 LLM 서버**로 실행됩니다.
 
@@ -54,6 +55,7 @@
 + 메모 저장·내용 수정 시 로컬 LLM 을 자동 호출하여 **요약(3~5문장)** 과 **할 일 목록**을 추출합니다.
 + 두 런타임 모두 JSON 스키마 기반 구조화 출력(Ollama `format`, LM Studio `response_format`)으로 `{"summary", "todos"}` 형식을 강제합니다.
 + 모델이 설명 문장·코드 블록·`<think>` 블록을 섞어 답해도 JSON 부분만 추출하고, 할 일의 공백·중복을 정리합니다.
++ 작은 모델이 예시를 결과에 옮겨 적지 않도록 프롬프트에는 구체적인 예시 값 없이 형식만 적고, 메모에 없는 담당자·기한이 붙은 할 일은 버립니다.
 + 연결 실패·응답 시간 초과·서버 오류를 원인을 알 수 있는 문장으로 저장하고, **다시 시도** 버튼으로 재요약할 수 있습니다.
 
 ### 4) LLM 설정 (로컬 IP 입력)
@@ -315,17 +317,20 @@ erDiagram
 | 인증 | 세션 기반 폼 로그인. 로그인·회원가입·정적 리소스 외 모든 요청은 로그인 필요 (화면은 로그인 화면으로, API 는 401 JSON) |
 | 비밀번호 유출 | BCrypt 해시(`{bcrypt}` 위임 인코더)로만 저장, 세션의 로그인 정보에서도 비밀번호 해시 제거 |
 | 로그인 입력 | 이메일·비밀번호 형식을 회원 조회 전에 검사(`LoginAuthenticationProvider`), 가입되지 않은 이메일과 틀린 비밀번호는 같은 문구로 안내(`CustomAuthFailureHandler`), 실패 문구는 URL 이 아니라 세션으로 한 번만 전달 |
+| 비밀번호 무차별 대입 | 비밀번호 5회 실패(같은 IP·아이디) 또는 20회 실패(같은 IP) 시 5분 잠금(`LoginAttemptService`), 잠긴 동안은 맞는 비밀번호도 거부. 다른 IP 는 영향 없음(남이 일부러 틀려 계정을 잠그는 것 방지), 로그인 성공으로 IP 실패 횟수를 초기화할 수 없음 |
 | 다른 회원 데이터 접근 (IDOR) | 모든 메모·요약·LLM 설정 조회에 작성자 조건, 다른 회원의 메모는 존재 여부도 드러나지 않도록 404 |
 | API Key 유출 | AES-256-GCM 으로 암호화해 저장(값마다 무작위 IV, 변조 검출). 키는 환경변수 `API_KEY_ENCRYPTION_KEY` 로 DB 와 분리 보관, 키가 없으면 기동 중단 |
 | XSS | 모든 출력은 Thymeleaf `th:text`(자동 이스케이프), JS 는 `textContent` 사용. CSP 로 인라인·외부 스크립트 실행 차단 |
 | SQL Injection | Spring Data 파라미터 바인딩만 사용(문자열로 SQL 조립 없음), 검색 키워드의 `\` `%` `_` 이스케이프 |
 | CSRF | Spring Security 가 모든 변경 요청(POST/PUT/DELETE)에 CSRF 토큰 검증. 폼은 자동 삽입, JS 는 `X-CSRF-TOKEN` 헤더 |
 | SSRF | LLM 서버 주소를 사설망·Tailscale 대역 IP 로 제한(`LlmHostGuard`) — localhost·루프백·`169.254.x`·공인 IP·도메인(DNS rebinding)·DB 주소 거부, 저장 시·호출 직전 재검사, 리다이렉트 미추적, 프록시 미사용 |
+| 프롬프트 인젝션 | 메모를 `<memo>` 태그로 감싸 데이터로만 다루도록 지시, 메모 안의 `<memo>` 태그 제거, 응답은 JSON 스키마(`summary`, `todos`)로 고정 |
 | 자원 고갈 | LLM 응답 본문 1MB 제한, 전체 제한 시간(요약 120초·모델 목록 15초)으로 조금씩 보내며 버티는 서버도 차단 |
 | 정보 노출 | LLM 서버의 오류 응답 본문은 노출하지 않고 상태 코드별 안내(401·403·400·404·429·3xx)만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
 | 클릭재킹 · MIME 스니핑 | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` |
 | 세션 | 로그인 시 세션 ID 재발급(세션 고정 방지), 로그아웃은 POST(CSRF 토큰 필요)로만 처리, 쿠키로만 추적(URL 에 세션 ID 미노출), `HttpOnly`, `SameSite=Lax` |
 
++ 리버스 프록시(Nginx 등) 뒤에서 실행하면 `server.forward-headers-strategy: native` 를 설정해야 로그인 시도 제한이 실제 사용자 IP 기준으로 동작합니다.
 + API Key 는 LLM 서버에 원문으로 보내야 하므로 해싱(복원 불가)이 아니라 암호화(복원 가능)를 사용합니다. 비밀번호는 원문이 필요 없으므로 해싱합니다.
 + `API_KEY_ENCRYPTION_KEY` 를 바꾸면 기존에 저장한 API Key 는 복호화할 수 없어 "저장된 키 없음"으로 표시되며, 다시 입력하면 새 키로 암호화됩니다.
 
@@ -354,12 +359,13 @@ erDiagram
     │   │       ├── annotation/              # @ValidUsername, @ValidPassword, @LocalIp
     │   │       └── validator/               # UsernameValidator, PasswordValidator, LocalIpValidator
     │   ├── 🔐 security/
-    │   │   ├── config/                      # SecurityConfig(폼 로그인·CSRF·보안 헤더), PasswordConfig(BCrypt)
+    │   │   ├── config/                      # SecurityConfig(폼 로그인·CSRF·보안 헤더), PasswordConfig(BCrypt), LoginAttemptConfig/Properties
     │   │   ├── core/                        # CustomUserPrincipal, @LoginUserId
     │   │   ├── userdetails/                 # CustomUserDetailService
-    │   │   ├── provider/                    # LoginAuthenticationProvider — 로그인 형식 검증 후 인증
+    │   │   ├── provider/                    # LoginAuthenticationProvider — 잠금·형식 검사 후 인증, 실패 기록
+    │   │   ├── attempt/                     # LoginAttemptService — 로그인 실패 횟수·잠금
     │   │   ├── handler/                     # CustomAuthFailureHandler, SecurityAccessDeniedHandler(403), SecurityAuthenticationEntryPoint(401)
-    │   │   └── exception/                   # InvalidLoginFormatException
+    │   │   └── exception/                   # InvalidLoginFormatException, LoginLockedException
     │   ├── 🎮 controller/
     │   │   ├── view/                        # AuthController, MemoPageController, SettingPageController, HomeController, AccessDeniedController
     │   │   └── api/                         # MemoApiController(/api/memos), SettingApiController(/api/settings/llm)
@@ -377,8 +383,8 @@ erDiagram
     │   │   │   ├── ollama/                  # OllamaLlmClient, 요청/응답(OllamaChatRequest, OllamaTagsResponse …)
     │   │   │   └── lmstudio/                # LmStudioLlmClient, 요청/응답(LmStudioChatRequest, LmStudioModelsResponse …)
     │   │   ├── config/                      # LlmConfig, LlmProperties(타임아웃·응답 크기·동시 실행 수)
-    │   │   ├── prompt/                      # SummaryPrompt — 프롬프트, 응답 JSON 스키마
-    │   │   ├── parser/                      # SummaryResultParser — LLM 응답 JSON 추출·정리
+    │   │   ├── prompt/                      # SummaryPrompt — 프롬프트(예시 값 없음, <memo> 태그), 응답 JSON 스키마
+    │   │   ├── parser/                      # SummaryResultParser — LLM 응답 JSON 추출·정리, 원문에 없는 담당자 제거
     │   │   ├── dto/                         # SummaryResult, ChatMessage, LlmConnection
     │   │   └── exception/                   # LlmException
     │   ├── 🧾 model/
@@ -391,7 +397,7 @@ erDiagram
     │       ├── MemoSummaryService.java      # 비동기 요약 실행, 결과 반영, 재요약
     │       └── LlmSettingService.java       # LLM 접속 설정 저장, 연결 테스트
     ├── main/resources/
-    │   ├── application.yml                  # 공통 설정 (DB 환경변수, LLM 호출 설정, 압축·캐시·세션)
+    │   ├── application.yml                  # 공통 설정 (DB 환경변수, LLM 호출 설정, 로그인 시도 제한, 압축·캐시·세션)
     │   ├── application-dev.yml / -prod.yml  # ddl-auto update / validate
     │   ├── db/schema.sql                    # PostgreSQL 스키마
     │   ├── templates/
@@ -405,11 +411,11 @@ erDiagram
     │       └── js/                          # common, theme-init, auth(로그인·회원가입 검증), memo-form, memo-detail(요약 폴링), settings
     └── test/java/io/dev/coding_test/
         ├── common/                          # 이메일·비밀번호 정규식, API Key 암호화, IP 해석·분류 테스트
-        ├── security/                        # CSRF·보안 헤더 테스트
-        ├── controller/                      # view·api MockMvc, 회원가입·로그인 검증, 회원 간 데이터 분리 테스트
+        ├── security/                        # CSRF·보안 헤더, 로그인 시도 제한 테스트
+        ├── controller/                      # view·api MockMvc, 회원가입·로그인 검증·잠금, 회원 간 데이터 분리 테스트
         ├── service/                         # 메모 CRUD, 비동기 요약·경합, LLM 설정 테스트
         ├── repository/                      # 경로별 SQL 수 검증
-        ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소 검사, 파서, 팩토리(제한 시간) 테스트
+        ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소 검사, 프롬프트, 파서(예시 누수), 팩토리(제한 시간) 테스트
         └── support/                         # FakeLlmClient(Factory), TestUsers·TestLoginContext(테스트 로그인), TestMockMvcCustomizer
 ```
 
