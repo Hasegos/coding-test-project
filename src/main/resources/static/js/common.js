@@ -66,6 +66,15 @@
             showToast(flash.dataset.message);
         }
 
+        /* 확인이 필요한 폼(삭제 등) */
+        document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                if (!window.confirm(form.dataset.confirm)) {
+                    e.preventDefault();
+                }
+            });
+        });
+
         document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const next = currentTheme() === 'dark' ? 'light' : 'dark';

@@ -93,4 +93,34 @@ class MemoServiceTest {
         assertThatThrownBy(() -> memoService.getMemo(9_999L))
                 .isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void 메모를_수정하면_제목_본문과_수정일이_변경된다() throws InterruptedException {
+        MemoResponse saved = memoService.create(new MemoRequest("초안", "초안 본문"));
+        Thread.sleep(5);
+
+        MemoResponse updated = memoService.update(saved.memoId(), new MemoRequest(" 최종 ", " 최종 본문 "));
+
+        assertThat(updated.title()).isEqualTo("최종");
+        assertThat(updated.content()).isEqualTo("최종 본문");
+        assertThat(updated.createdAt()).isEqualTo(saved.createdAt());
+        assertThat(updated.updatedAt()).isAfter(saved.updatedAt());
+    }
+
+    @Test
+    void 메모를_삭제하면_더이상_조회되지_않는다() {
+        MemoResponse saved = memoService.create(new MemoRequest("삭제할 메모", "본문"));
+
+        memoService.delete(saved.memoId());
+
+        assertThat(memoRepository.existsById(saved.memoId())).isFalse();
+    }
+
+    @Test
+    void 존재하지_않는_메모를_수정_삭제하면_NotFoundException이_발생한다() {
+        assertThatThrownBy(() -> memoService.update(9_999L, new MemoRequest("제목", "본문")))
+                .isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> memoService.delete(9_999L))
+                .isInstanceOf(NotFoundException.class);
+    }
 }
