@@ -4,6 +4,16 @@
 -- psql -U $POSTGRESQL_USERNAME -d $POSTGRESQL_DATABASE -f schema.sql
 -- =====================================================================
 
+-- 회원 (비밀번호는 BCrypt 해시만 저장)
+CREATE TABLE IF NOT EXISTS member (
+    member_id   BIGSERIAL       PRIMARY KEY,
+    username    VARCHAR(20)     NOT NULL,                       -- 로그인 아이디 (영문 소문자·숫자·밑줄)
+    password    VARCHAR(100)    NOT NULL,                       -- {bcrypt}$2a$10$...
+    nickname    VARCHAR(20)     NOT NULL,
+    created_at  TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT uk_member_username UNIQUE (username)
+);
+
 -- 메모
 CREATE TABLE IF NOT EXISTS memo (
     memo_id         BIGSERIAL       PRIMARY KEY,
