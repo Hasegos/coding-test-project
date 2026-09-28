@@ -2,6 +2,7 @@ package io.dev.coding_test.llm.client;
 
 import io.dev.coding_test.llm.config.LlmProperties;
 import io.dev.coding_test.llm.dto.LlmConnection;
+import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.provider.lmstudio.LmStudioLlmClient;
 import io.dev.coding_test.llm.provider.ollama.OllamaLlmClient;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * 설정이 바뀌면(접속 정보가 달라지면) 새로 만든다.
  * </p>
  * <ul>
+ *     <li>클라이언트를 돌려주기 전에 매번 {@link LlmHostGuard}로 주소를 다시 검사한다. (저장 후 규칙이 바뀐 경우 대비)</li>
  *     <li>로컬/Tailscale 네트워크의 LLM 서버를 직접 호출하므로 시스템 프록시를 사용하지 않는다.</li>
  *     <li>리다이렉트를 따라가지 않는다. (허용한 로컬 IP에서 다른 주소로 우회되는 것을 막음)</li>
  *     <li>요청 본문은 버퍼링해 {@code Content-Length}와 함께 보낸다. (chunked 요청을 처리하지 못하는 OpenAI 호환 서버 대비)</li>
@@ -36,6 +39,7 @@ public class LlmClientFactory {
 
     private final LlmProperties properties;
     private final SummaryResultParser parser;
+    private final LlmHostGuard llmHostGuard;
 
     private final AtomicReference<CachedClient> cache = new AtomicReference<>();
 
@@ -44,8 +48,10 @@ public class LlmClientFactory {
      *
      * @param connection LLM 서버 접속 정보
      * @return LLM 클라이언트
+     * @throws io.dev.coding_test.llm.exception.LlmException LLM 서버로 사용할 수 없는 주소인 경우
      */
     public LlmClient getClient(LlmConnection connection) {
+        llmHostGuard.check(connection.host());
         CachedClient cached = cache.get();
         if (cached != null && cached.connection().equals(connection)) {
             return cached.client();
@@ -61,23 +67,30 @@ public class LlmClientFactory {
      *
      * @param connection LLM 서버 접속 정보
      * @return LLM 클라이언트
+     * @throws io.dev.coding_test.llm.exception.LlmException LLM 서버로 사용할 수 없는 주소인 경우
      */
     public LlmClient create(LlmConnection connection) {
-        RestClient restClient = restClient(connection);
-        return switch (connection.provider()) {
-            case OLLAMA -> new OllamaLlmClient(restClient, connection, properties, parser);
-            case LMSTUDIO -> new LmStudioLlmClient(restClient, connection, properties, parser);
-        };
-    }
-
-    private RestClient restClient(LlmConnection connection) {
+        llmHostGuard.check(connection.host());
         HttpClient httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.NEVER)
+                .proxy(HttpClient.Builder.NO_PROXY)
                 .connectTimeout(properties.connectTimeout())
                 .build();
+        RestClient chatClient = restClient(httpClient, connection, properties.readTimeout());
+        RestClient modelsClient = restClient(httpClient, connection, properties.modelsTimeout());
+        return switch (connection.provider()) {
+            case OLLAMA -> new OllamaLlmClient(chatClient, modelsClient, connection, properties, parser);
+            case LMSTUDIO -> new LmStudioLlmClient(chatClient, modelsClient, connection, properties, parser);
+        };
+    }
+
+    /**
+     * @param timeout 요청 전체 제한 시간. JDK 요청 팩토리는 응답 본문을 다 읽을 때까지 이 시간을 적용한다.
+     */
+    private static RestClient restClient(HttpClient httpClient, LlmConnection connection, Duration timeout) {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(properties.readTimeout());
+        requestFactory.setReadTimeout(timeout);
 
         RestClient.Builder builder = RestClient.builder()
                 .requestFactory(new BufferingClientHttpRequestFactory(requestFactory))
