@@ -166,9 +166,11 @@ public class MemoSummaryService {
             return;
         }
 
-        LlmClient llmClient = llmClientFactory.getClient(connection.get());
+        // 저장된 주소도 호출 직전에 다시 검사하므로(LlmHostGuard) 클라이언트 생성 실패도 요약 실패로 기록한다.
+        LlmClient llmClient;
         SummaryResult result;
         try {
+            llmClient = llmClientFactory.getClient(connection.get());
             result = llmClient.summarize(snapshot.get().title(), snapshot.get().content());
         } catch (LlmException e) {
             log.warn("요약 실패 - memoId: {}, 사유: {}", memoId, e.getMessage());

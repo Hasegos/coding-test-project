@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_memo_todo_memo_id ON memo_todo (memo_id, sort_ord
 CREATE TABLE IF NOT EXISTS llm_setting (
     setting_id  BIGINT          PRIMARY KEY,                    -- 항상 1
     provider    VARCHAR(20)     NOT NULL,                       -- OLLAMA | LMSTUDIO
-    host        VARCHAR(15)     NOT NULL,                       -- 로컬 전용 IPv4 (사설망 · Tailscale 대역)
+    host        VARCHAR(45)     NOT NULL,                       -- 로컬 전용 IP (사설망 · Tailscale 대역, IPv6 포함)
     port        INTEGER         NOT NULL,
     model       VARCHAR(100)    NOT NULL,
     api_key     VARCHAR(200),
@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS llm_setting (
     CONSTRAINT ck_llm_setting_provider CHECK (provider IN ('OLLAMA', 'LMSTUDIO')),
     CONSTRAINT ck_llm_setting_port CHECK (port BETWEEN 1 AND 65535)
 );
+
+-- 이전 버전(host VARCHAR(15), IPv4 전용)으로 만든 DB는 IPv6 주소를 저장할 수 있도록 길이를 늘린다.
+ALTER TABLE llm_setting ALTER COLUMN host TYPE VARCHAR(45);
 
 -- (선택) 메모가 많아져 제목·본문 검색(LIKE '%키워드%')이 느려지면 trigram 인덱스를 추가한다.
 -- pg_trgm 확장 설치 권한이 필요하다.

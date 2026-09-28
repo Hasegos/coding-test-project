@@ -74,7 +74,7 @@
             testButton.disabled = true;
             showResult('연결하는 중…');
 
-            window.AiMemo.requestJson('/api/settings/llm/models', {
+            window.AiMemo.requestJson('/api/settings/llm/test', {
                 method: 'POST',
                 body: {
                     provider: provider ? provider.value : null,
@@ -83,17 +83,24 @@
                     apiKey: apiKeyInput.value
                 }
             }).then(function (response) {
+                // 연결 실패도 200 + ok=false 로 온다. (입력값 검증 실패만 400)
+                if (!response.ok) {
+                    clearModels();
+                    showResult(response.message || '연결에 실패했어요.', 'error');
+                    return;
+                }
                 const models = response.models || [];
                 renderModels(models);
                 if (models.length === 0) {
-                    showResult('연결은 됐지만 불러올 수 있는 모델이 없어요. LLM 서버에서 모델을 먼저 로드해주세요.', 'error');
+                    // 모델 목록 미지원(models=null) / 로드된 모델 없음: 연결은 됐으니 안내만 한다.
+                    showResult('연결 성공 (' + response.latencyMs + 'ms) · ' + response.message);
                     return;
                 }
                 if (!modelInput.value && models.length === 1) {
                     modelInput.value = models[0];
                     renderModels(models);
                 }
-                showResult('연결 성공 · 모델 ' + models.length + '개를 불러왔어요.', 'ok');
+                showResult('연결 성공 (' + response.latencyMs + 'ms) · 모델 ' + models.length + '개를 불러왔어요.', 'ok');
             }).catch(function (err) {
                 clearModels();
                 showResult(err.message || '연결에 실패했어요.', 'error');

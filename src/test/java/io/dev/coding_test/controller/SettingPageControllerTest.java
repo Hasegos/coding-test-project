@@ -75,7 +75,7 @@ class SettingPageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("settings/llm"))
                 .andExpect(model().attributeHasFieldErrors("llmSettingRequest", "host"))
-                .andExpect(content().string(containsString("로컬 IP")))
+                .andExpect(content().string(containsString("공인 IP는 사용할 수 없어요")))
                 .andExpect(content().string(not(containsString("typed-secret"))));
     }
 
@@ -85,7 +85,7 @@ class SettingPageControllerTest {
                 .andExpect(content().string(containsString("LLM 서버가 아직 연결되지 않았어요")))
                 .andExpect(content().string(containsString("header__dot")));
 
-        llmSettingService.save(new LlmSettingRequest(LlmProvider.OLLAMA, "127.0.0.1", 11434, "qwen2.5:7b", null, false));
+        llmSettingService.save(new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.10", 11434, "qwen2.5:7b", null, false));
 
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(not(containsString("LLM 서버가 아직 연결되지 않았어요"))))

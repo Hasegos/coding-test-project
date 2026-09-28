@@ -5,6 +5,7 @@ import io.dev.coding_test.llm.dto.SummaryResult;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,7 +25,7 @@ public class FakeLlmClient implements LlmClient {
     public static final String MODEL = "fake-model";
 
     private volatile BiFunction<String, String, SummaryResult> behavior = FakeLlmClient::defaultResult;
-    private volatile Supplier<List<String>> models = () -> List.of(MODEL);
+    private volatile Supplier<Optional<List<String>>> models = () -> Optional.of(List.of(MODEL));
     private volatile CountDownLatch entered = new CountDownLatch(0);
     private volatile CountDownLatch gate = new CountDownLatch(0);
     private final AtomicInteger calls = new AtomicInteger();
@@ -45,7 +46,7 @@ public class FakeLlmClient implements LlmClient {
     }
 
     @Override
-    public List<String> listModels() {
+    public Optional<List<String>> listModels() {
         return models.get();
     }
 
@@ -60,7 +61,7 @@ public class FakeLlmClient implements LlmClient {
     }
 
     /** 모델 목록 조회 결과(또는 예외)를 지정한다. */
-    public void willListModels(Supplier<List<String>> models) {
+    public void willListModels(Supplier<Optional<List<String>>> models) {
         this.models = models;
     }
 
@@ -85,7 +86,7 @@ public class FakeLlmClient implements LlmClient {
 
     public void reset() {
         behavior = FakeLlmClient::defaultResult;
-        models = () -> List.of(MODEL);
+        models = () -> Optional.of(List.of(MODEL));
         gate.countDown();
         entered = new CountDownLatch(0);
         gate = new CountDownLatch(0);
