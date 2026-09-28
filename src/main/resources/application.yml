@@ -1,6 +1,9 @@
 server:
   port: 8083
   shutdown: graceful
+  servlet:
+    session:
+      tracking-modes: cookie # flash 메시지용 세션 ID가 리다이렉트 URL(;jsessionid=)에 노출되지 않도록 쿠키만 사용
 
 spring:
   application:
@@ -29,3 +32,15 @@ spring:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 100
+
+# 로컬 LLM (Ollama / LM Studio) — 환경변수로 전환
+llm:
+  provider: ${LLM_PROVIDER:ollama}          # ollama | lmstudio
+  base-url: ${LLM_BASE_URL:}                # 비우면 ollama=http://localhost:11434, lmstudio=http://localhost:1234
+  model: ${LLM_MODEL:qwen2.5:7b}
+  api-key: ${LLM_API_KEY:}                  # LM Studio 인증 토큰 등 (선택)
+  temperature: 0.2
+  connect-timeout: 5s
+  read-timeout: ${LLM_READ_TIMEOUT:120s}
+  concurrency: ${LLM_CONCURRENCY:1}         # 동시 요약 수 (GPU 1장이면 1 권장)
+  queue-capacity: 100
