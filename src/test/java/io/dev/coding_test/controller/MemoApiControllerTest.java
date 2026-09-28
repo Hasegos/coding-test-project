@@ -145,4 +145,44 @@ class MemoApiControllerTest {
         mockMvc.perform(delete("/api/memos/{id}", 9_999))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void 메모_조회시_요약_상태를_함께_반환한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/api/memos/{id}", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.status").value("PENDING"))
+                .andExpect(jsonPath("$.summary.todos").isArray());
+        mockMvc.perform(get("/api/memos").param("keyword", "회의"))
+                .andExpect(jsonPath("$.content[0].summaryStatus").value("PENDING"))
+                .andExpect(jsonPath("$.content[0].todoCount").value(0));
+    }
+
+    @Test
+    void 요약_결과를_조회한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/api/memos/{id}/summary", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.summary").doesNotExist());
+    }
+
+    @Test
+    void 재요약_요청은_202를_반환한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(post("/api/memos/{id}/summary", memo.memoId()))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void 존재하지_않는_메모의_요약_조회_재요약은_404를_반환한다() throws Exception {
+        mockMvc.perform(get("/api/memos/{id}/summary", 9_999))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/memos/{id}/summary", 9_999))
+                .andExpect(status().isNotFound());
+    }
 }
