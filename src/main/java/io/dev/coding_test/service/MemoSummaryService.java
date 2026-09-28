@@ -3,7 +3,9 @@ package io.dev.coding_test.service;
 import io.dev.coding_test.common.exception.NotFoundException;
 import io.dev.coding_test.common.util.SummaryStatusUtil;
 import io.dev.coding_test.common.util.TimeUtil;
+import io.dev.coding_test.dto.MemoRevision;
 import io.dev.coding_test.dto.MemoSummaryResponse;
+import io.dev.coding_test.dto.MemoSummaryStatusResponse;
 import io.dev.coding_test.event.MemoSummaryRequestedEvent;
 import io.dev.coding_test.llm.client.LlmClient;
 import io.dev.coding_test.llm.client.LlmClientFactory;
@@ -92,6 +94,20 @@ public class MemoSummaryService {
     }
 
     /**
+     * 메모의 요약 상태만 조회한다. (화면의 요약 상태 폴링 — 본문·할 일을 읽지 않는 1쿼리)
+     *
+     * @param memoId 메모 ID
+     * @return 요약 상태
+     * @throws NotFoundException 해당 ID의 메모가 없을 경우
+     */
+    @Transactional(readOnly = true)
+    public MemoSummaryStatusResponse getSummaryStatus(Long memoId) {
+        SummaryStatus status = memoRepository.findSummaryStatus(memoId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId));
+        return MemoSummaryStatusResponse.of(status);
+    }
+
+    /**
      * 메모 재요약을 요청한다. 이미 요약 중(PENDING/PROCESSING)이면 중복 요청하지 않는다.
      *
      * @param memoId 메모 ID
@@ -114,11 +130,15 @@ public class MemoSummaryService {
      */
     @Transactional
     public int retryFailed() {
-        List<Memo> failed = memoRepository.findBySummaryStatus(SummaryStatus.FAILED);
-        failed.forEach(this::requestSummary);
-        if (!failed.isEmpty()) {
-            log.info("실패한 요약 재요청 - {}건", failed.size());
+        // 메모 본문을 읽지 않도록 ID·revision만 조회하고, 상태는 UPDATE 한 번으로 바꾼다.
+        List<MemoRevision> failed = memoRepository.findRevisionsBySummaryStatusIn(List.of(SummaryStatus.FAILED));
+        if (failed.isEmpty()) {
+            return 0;
         }
+        memoRepository.markPendingByStatus(SummaryStatus.FAILED);
+        failed.forEach(memo -> eventPublisher.publishEvent(
+                new MemoSummaryRequestedEvent(memo.memoId(), memo.revision())));
+        log.info("실패한 요약 재요청 - {}건", failed.size());
         return failed.size();
     }
 
@@ -228,7 +248,7 @@ public class MemoSummaryService {
     }
 
     private Memo findMemo(Long memoId) {
-        return memoRepository.findById(memoId)
+        return memoRepository.findWithTodosByMemoId(memoId)
                 .orElseThrow(() -> new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId));
     }
 
