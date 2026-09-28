@@ -108,6 +108,14 @@ class SettingApiControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.BLOCKED_MESSAGE));
+
+        mockMvc.perform(put("/api/settings/llm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "LMSTUDIO", "host": "http://100.66.180.73", "port": 1234, "model": "qwen2.5:7b"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.URL_MESSAGE));
     }
 
     @Test
