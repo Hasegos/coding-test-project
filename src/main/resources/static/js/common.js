@@ -1,5 +1,5 @@
 /**
- * 공통 JS — 공용 헬퍼(JSON 요청·토스트) / 테마 전환
+ * 공통 JS — 공용 헬퍼(JSON 요청·토스트) / 회원 메뉴 / 테마 전환
  */
 (function () {
     'use strict';
@@ -37,6 +37,10 @@
         return fetch(url, opts).then(function (res) {
             if (res.status === 204) return null;
             return res.json().catch(function () { return null; }).then(function (data) {
+                if (res.status === 401) {
+                    // 세션 만료: 로그인 화면으로 보낸다. (로그인 후 이 화면으로 돌아옴)
+                    window.location.href = '/login';
+                }
                 if (!res.ok) {
                     // 필드 검증 실패(400)면 첫 번째 필드 메시지를 우선 보여준다.
                     const fieldMessage = data && data.errors && data.errors.length ? data.errors[0].message : null;
@@ -90,6 +94,34 @@
             form.addEventListener('submit', function (e) {
                 if (!window.confirm(form.dataset.confirm)) {
                     e.preventDefault();
+                }
+            });
+        });
+
+        /* 회원 메뉴 (닉네임 드롭다운) */
+        document.querySelectorAll('[data-user-menu]').forEach(function (menu) {
+            const button = menu.querySelector('[data-user-menu-button]');
+            const list = menu.querySelector('[data-user-menu-list]');
+
+            function setOpen(open) {
+                list.hidden = !open;
+                button.setAttribute('aria-expanded', String(open));
+            }
+
+            button.addEventListener('click', function () {
+                setOpen(list.hidden);
+                if (!list.hidden) {
+                    const first = list.querySelector('[role="menuitem"]');
+                    if (first) first.focus();
+                }
+            });
+            document.addEventListener('click', function (e) {
+                if (!menu.contains(e.target)) setOpen(false);
+            });
+            menu.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !list.hidden) {
+                    setOpen(false);
+                    button.focus();
                 }
             });
         });
