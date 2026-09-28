@@ -1,4 +1,6 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.prompt;
+
+import io.dev.coding_test.llm.parser.SummaryResultParser;
 
 import java.util.List;
 import java.util.Map;
