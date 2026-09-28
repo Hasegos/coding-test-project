@@ -202,4 +202,15 @@ class MemoPageControllerTest {
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(containsString("badge--pending")));
     }
+
+    @Test
+    void 목록과_상세에서_제목의_HTML을_이스케이프한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("<img src=x onerror=alert(1)>", "본문"));
+
+        mockMvc.perform(get("/memos"))
+                .andExpect(content().string(containsString("&lt;img src=x onerror=alert(1)&gt;")))
+                .andExpect(content().string(not(containsString("<img src=x"))));
+        mockMvc.perform(get("/memos/{id}", memo.memoId()))
+                .andExpect(content().string(not(containsString("<img src=x"))));
+    }
 }
