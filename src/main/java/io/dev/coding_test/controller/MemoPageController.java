@@ -1,18 +1,23 @@
 package io.dev.coding_test.controller;
 
+import io.dev.coding_test.common.util.PageRangeUtil;
+import io.dev.coding_test.dto.MemoListItem;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.service.MemoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
@@ -24,7 +29,43 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequestMapping("/memos")
 public class MemoPageController {
 
+    private static final int PAGE_SIZE = 12;
+    private static final int PAGE_WINDOW = 5;
+
     private final MemoService memoService;
+
+    /**
+     * 메모 목록 페이지를 렌더링한다.
+     *
+     * @param keyword 제목/본문 검색 키워드 (선택)
+     * @param page    페이지 번호 (0부터 시작)
+     * @param model   뷰에 전달할 데이터 모델
+     * @return 메모 목록 뷰 이름
+     */
+    @GetMapping
+    public String list(@RequestParam(required = false) String keyword,
+                       @RequestParam(defaultValue = "0") int page,
+                       Model model) {
+        Page<MemoListItem> memos = memoService.getMemos(keyword, page, PAGE_SIZE);
+        model.addAttribute("memos", memos);
+        model.addAttribute("keyword", keyword == null ? "" : keyword.strip());
+        model.addAttribute("pageNumbers",
+                PageRangeUtil.pageNumbers(memos.getNumber(), memos.getTotalPages(), PAGE_WINDOW));
+        return "memo/list";
+    }
+
+    /**
+     * 메모 상세 페이지를 렌더링한다.
+     *
+     * @param memoId 메모 ID
+     * @param model  뷰에 전달할 데이터 모델
+     * @return 메모 상세 뷰 이름
+     */
+    @GetMapping("/{memoId}")
+    public String detail(@PathVariable Long memoId, Model model) {
+        model.addAttribute("memo", memoService.getMemo(memoId));
+        return "memo/detail";
+    }
 
     /**
      * 메모 작성 페이지를 렌더링한다.
