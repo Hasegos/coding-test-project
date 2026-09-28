@@ -30,6 +30,7 @@ public class LlmSettingRequest {
     private LlmProvider provider;
 
     @NotBlank(message = "LLM 서버 IP를 입력해주세요.")
+    @Size(max = 45, message = "IP 주소가 너무 길어요.")
     @LocalIp
     private String host;
 
