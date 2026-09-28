@@ -1,5 +1,8 @@
 package io.dev.coding_test.controller;
 
+import io.dev.coding_test.dto.MemoRequest;
+import io.dev.coding_test.dto.MemoResponse;
+import io.dev.coding_test.service.MemoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +24,9 @@ class MemoPageControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private MemoService memoService;
 
     @Test
     void 작성_페이지를_렌더링한다() throws Exception {
@@ -50,5 +56,54 @@ class MemoPageControllerTest {
                 .andExpect(model().attributeHasFieldErrors("memoRequest", "title"))
                 .andExpect(content().string(containsString("유지될 본문")))
                 .andExpect(content().string(containsString("제목을 입력해주세요.")));
+    }
+
+    @Test
+    void 루트_요청은_메모_목록으로_리다이렉트한다() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/memos"));
+    }
+
+    @Test
+    void 목록_페이지에_메모와_검색어를_렌더링한다() throws Exception {
+        memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/memos").param("keyword", "회의"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("memo/list"))
+                .andExpect(model().attribute("keyword", "회의"))
+                .andExpect(content().string(containsString("주간 회의")));
+    }
+
+    @Test
+    void 메모가_없으면_빈_상태를_보여준다() throws Exception {
+        mockMvc.perform(get("/memos"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("아직 작성한 메모가 없어요")));
+    }
+
+    @Test
+    void 상세_페이지에_원문을_렌더링한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "<script>alert(1)</script>"));
+
+        mockMvc.perform(get("/memos/{id}", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("memo/detail"))
+                .andExpect(content().string(containsString("&lt;script&gt;alert(1)&lt;/script&gt;")));
+    }
+
+    @Test
+    void 존재하지_않는_메모_상세는_404_에러_페이지를_보여준다() throws Exception {
+        mockMvc.perform(get("/memos/{id}", 9_999))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/error"));
+    }
+
+    @Test
+    void 메모_ID가_숫자가_아니면_400_에러_페이지를_보여준다() throws Exception {
+        mockMvc.perform(get("/memos/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name("error/error"));
     }
 }
