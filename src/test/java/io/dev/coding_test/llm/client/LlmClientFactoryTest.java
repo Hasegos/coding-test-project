@@ -86,6 +86,27 @@ class LlmClientFactoryTest {
     }
 
     @Test
+    void 회원마다_다른_접속_정보를_번갈아_써도_각각_재사용한다() {
+        LlmConnection first = connection(LlmProvider.OLLAMA, "192.168.0.10", 11434, null);
+        LlmConnection second = connection(LlmProvider.LMSTUDIO, "192.168.0.20", 1234, "secret");
+        LlmClient firstClient = factory.getClient(first);
+        LlmClient secondClient = factory.getClient(second);
+
+        assertThat(factory.getClient(first)).isSameAs(firstClient);
+        assertThat(factory.getClient(second)).isSameAs(secondClient);
+    }
+
+    @Test
+    void 오래_쓰지_않은_접속_정보부터_캐시에서_뺀다() {
+        LlmClient oldest = factory.getClient(connection(LlmProvider.OLLAMA, "192.168.0.10", 1, null));
+        for (int port = 2; port <= LlmClientFactory.CACHE_SIZE + 1; port++) {
+            factory.getClient(connection(LlmProvider.OLLAMA, "192.168.0.10", port, null));
+        }
+
+        assertThat(factory.getClient(connection(LlmProvider.OLLAMA, "192.168.0.10", 1, null))).isNotSameAs(oldest);
+    }
+
+    @Test
     void api_key가_있으면_Bearer_헤더와_Content_Length를_보내고_실제_HTTP로_요약한다() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         String[] authorization = new String[1];
