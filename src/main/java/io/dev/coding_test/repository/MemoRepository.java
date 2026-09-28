@@ -1,7 +1,7 @@
 package io.dev.coding_test.repository;
 
-import io.dev.coding_test.dto.MemoListRow;
-import io.dev.coding_test.dto.MemoRevision;
+import io.dev.coding_test.dto.memo.MemoListRow;
+import io.dev.coding_test.dto.memo.MemoRevision;
 import io.dev.coding_test.model.Memo;
 import io.dev.coding_test.model.enums.SummaryStatus;
 import org.springframework.data.domain.Page;
@@ -27,7 +27,7 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
 
     /** 목록 projection: 본문은 앞부분만, 할 일은 개수만 조회 */
     String LIST_ROW_SELECT = """
-            SELECT new io.dev.coding_test.dto.MemoListRow(
+            SELECT new io.dev.coding_test.dto.memo.MemoListRow(
                 m.memoId, m.title, SUBSTRING(m.content, 1, """ + MemoListRow.CONTENT_HEAD_LENGTH + """
             ), m.createdAt, m.updatedAt, m.summaryStatus, SIZE(m.todos))
             FROM Memo m
@@ -108,7 +108,7 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
      * @param statuses 조회할 요약 상태 목록
      * @return 메모 ID·revision 목록
      */
-    @Query("SELECT new io.dev.coding_test.dto.MemoRevision(m.memoId, m.revision) FROM Memo m WHERE m.summaryStatus IN :statuses")
+    @Query("SELECT new io.dev.coding_test.dto.memo.MemoRevision(m.memoId, m.revision) FROM Memo m WHERE m.summaryStatus IN :statuses")
     List<MemoRevision> findRevisionsBySummaryStatusIn(@Param("statuses") Collection<SummaryStatus> statuses);
 
     /**
@@ -119,7 +119,7 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
      * @return 메모 ID·revision 목록
      */
     @Query("""
-            SELECT new io.dev.coding_test.dto.MemoRevision(m.memoId, m.revision) FROM Memo m
+            SELECT new io.dev.coding_test.dto.memo.MemoRevision(m.memoId, m.revision) FROM Memo m
             WHERE m.user.userId = :userId AND m.summaryStatus = :status
             """)
     List<MemoRevision> findRevisions(@Param("userId") Long userId, @Param("status") SummaryStatus status);
