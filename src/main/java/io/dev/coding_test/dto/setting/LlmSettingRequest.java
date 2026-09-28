@@ -1,6 +1,6 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.setting;
 
-import io.dev.coding_test.common.validation.LocalIp;
+import io.dev.coding_test.common.validation.annotation.LocalIp;
 import io.dev.coding_test.model.enums.LlmProvider;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
