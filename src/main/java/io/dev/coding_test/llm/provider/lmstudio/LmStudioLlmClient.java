@@ -1,7 +1,11 @@
-package io.dev.coding_test.llm;
+package io.dev.coding_test.llm.provider.lmstudio;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.dev.coding_test.llm.client.AbstractLlmClient;
+import io.dev.coding_test.llm.config.LlmProperties;
+import io.dev.coding_test.llm.dto.ChatMessage;
+import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.parser.SummaryResultParser;
+import io.dev.coding_test.llm.prompt.SummaryPrompt;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
@@ -32,44 +36,25 @@ public class LmStudioLlmClient extends AbstractLlmClient {
 
     @Override
     protected String requestCompletion(String system, String user) {
-        ChatRequest request = new ChatRequest(
+        LmStudioChatRequest request = new LmStudioChatRequest(
                 properties.model(),
-                List.of(new Message("system", system), new Message("user", user)),
+                List.of(ChatMessage.system(system), ChatMessage.user(user)),
                 properties.temperature(),
                 false,
                 RESPONSE_FORMAT
         );
 
-        ChatResponse response = restClient.post()
+        LmStudioChatResponse response = restClient.post()
                 .uri("/v1/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .body(ChatResponse.class);
+                .body(LmStudioChatResponse.class);
 
         if (response == null || response.choices() == null || response.choices().isEmpty()
                 || response.choices().getFirst().message() == null) {
             throw new LlmException("LM Studio 응답 형식이 올바르지 않아요.");
         }
         return response.choices().getFirst().message().content();
-    }
-
-    record ChatRequest(String model,
-                       List<Message> messages,
-                       double temperature,
-                       boolean stream,
-                       @JsonProperty("response_format") Map<String, Object> responseFormat) {
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record Message(String role, String content) {
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record Choice(Message message) {
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record ChatResponse(List<Choice> choices) {
     }
 }
