@@ -133,4 +133,16 @@ class MemoServiceTest {
         assertThat(memoService.getMemos("_", 0, 10).getContent()).isEmpty();
         assertThat(memoRepository.count()).isEqualTo(1);
     }
+
+    @Test
+    void 검색_키워드의_역슬래시와_밑줄도_문자_그대로_검색한다() {
+        memoService.create(new MemoRequest("경로 C:\\temp", "본문"));
+        memoService.create(new MemoRequest("snake_case 규칙", "본문"));
+        memoService.create(new MemoRequest("일반 메모", "본문"));
+
+        assertThat(memoService.getMemos("\\", 0, 10).getContent())
+                .extracting(MemoListItem::title).containsExactly("경로 C:\\temp");
+        assertThat(memoService.getMemos("e_c", 0, 10).getContent())
+                .extracting(MemoListItem::title).containsExactly("snake_case 규칙");
+    }
 }
