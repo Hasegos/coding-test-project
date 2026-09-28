@@ -1,17 +1,17 @@
 package io.dev.coding_test.service;
 
-import io.dev.coding_test.dto.LlmSettingRequest;
-import io.dev.coding_test.dto.MemoRequest;
-import io.dev.coding_test.dto.MemoResponse;
-import io.dev.coding_test.dto.MemoSummaryResponse;
+import io.dev.coding_test.dto.memo.MemoRequest;
+import io.dev.coding_test.dto.memo.MemoResponse;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
+import io.dev.coding_test.dto.summary.MemoSummaryResponse;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.model.enums.SummaryStatus;
 import io.dev.coding_test.repository.LlmSettingRepository;
-import io.dev.coding_test.repository.UserRepository;
 import io.dev.coding_test.repository.MemoRepository;
+import io.dev.coding_test.repository.UserRepository;
 import io.dev.coding_test.support.FakeLlmClient;
 import io.dev.coding_test.support.FakeLlmClientFactory;
 import io.dev.coding_test.support.TestLoginContext;
