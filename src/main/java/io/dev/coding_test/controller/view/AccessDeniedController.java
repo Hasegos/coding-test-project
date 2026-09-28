@@ -1,6 +1,6 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.view;
 
-import io.dev.coding_test.common.handler.SecurityAccessDeniedHandler;
+import io.dev.coding_test.security.handler.SecurityAccessDeniedHandler;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
