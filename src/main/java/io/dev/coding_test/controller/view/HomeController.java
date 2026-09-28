@@ -1,4 +1,4 @@
-package io.dev.coding_test.controller;
+package io.dev.coding_test.controller.view;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
