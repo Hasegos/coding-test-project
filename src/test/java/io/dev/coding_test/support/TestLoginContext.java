@@ -11,7 +11,9 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * 테스트 MockMvc 요청에 붙일 로그인 회원.
  * <p>
  * {@link TestMockMvcCustomizer}가 모든 요청을 이 회원으로 로그인한 상태로 보낸다.
- * 요청마다 현재 값을 읽으므로 테스트에서 {@link #loginAs}로 바꿀 수 있고, 바꿨다면 {@link #reset()}으로 되돌린다.
+ * 요청마다 현재 값을 읽으므로 테스트에서 {@link #loginAs}(보통 {@link TestMembers#login})로 바꿀 수 있고,
+ * 바꿨다면 {@link #reset()}으로 되돌린다. 기본 회원({@link #DEFAULT_MEMBER})은 DB에 없으므로
+ * 메모·LLM 설정을 다루는 테스트는 {@link TestMembers#login}으로 실제 회원을 만들어 쓴다.
  * </p>
  */
 @Component
