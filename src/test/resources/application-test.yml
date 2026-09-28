@@ -16,3 +16,8 @@ spring:
     properties:
       hibernate:
         generate_statistics: true # 쿼리 수 검증(MemoQueryCountTest)용
+
+# 테스트 전용 암호화 키 (운영 키와 무관)
+app:
+  crypto:
+    secret-key: dGVzdC1vbmx5LWtleS0wMTIzNDU2Nzg5YWJjZGVmMDE=
