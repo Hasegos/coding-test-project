@@ -31,7 +31,7 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
                 m.memoId, m.title, SUBSTRING(m.content, 1, """ + MemoListRow.CONTENT_HEAD_LENGTH + """
             ), m.createdAt, m.updatedAt, m.summaryStatus, SIZE(m.todos))
             FROM Memo m
-            WHERE m.member.memberId = :memberId
+            WHERE m.user.userId = :userId
             """;
 
     /** 제목/본문 키워드 조건 (소문자 LIKE, 역슬래시 이스케이프) */
@@ -41,7 +41,7 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
             """;
 
     /** 작성자 조건 개수 쿼리 */
-    String COUNT_BY_MEMBER = "SELECT COUNT(m) FROM Memo m WHERE m.member.memberId = :memberId ";
+    String COUNT_BY_USER = "SELECT COUNT(m) FROM Memo m WHERE m.user.userId = :userId ";
 
     /**
      * 회원의 메모 목록을 페이지 단위로 조회한다. (목록 화면에 필요한 컬럼만 projection)
@@ -50,53 +50,53 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
      * 엔티티·컬렉션 로딩 없이 목록 1쿼리 + 개수 1쿼리로 처리한다.
      * </p>
      *
-     * @param memberId 작성자 회원 ID
+     * @param userId 작성자 회원 ID
      * @param pageable 페이지 정보 (정렬 포함)
      * @return 메모 목록 Page 객체
      */
-    @Query(value = LIST_ROW_SELECT, countQuery = COUNT_BY_MEMBER)
-    Page<MemoListRow> findListRows(@Param("memberId") Long memberId, Pageable pageable);
+    @Query(value = LIST_ROW_SELECT, countQuery = COUNT_BY_USER)
+    Page<MemoListRow> findListRows(@Param("userId") Long userId, Pageable pageable);
 
     /**
      * 회원의 메모 중 제목 또는 본문에 키워드가 포함된 메모 목록을 대소문자 구분 없이 조회한다. (목록 projection)
      *
-     * @param memberId 작성자 회원 ID
+     * @param userId   작성자 회원 ID
      * @param pattern  소문자 LIKE 패턴 ({@code %키워드%}, 키워드의 {@code \ % _}는 {@code \}로 이스케이프)
      * @param pageable 페이지 정보 (정렬 포함)
      * @return 키워드가 포함된 메모 목록 Page 객체
      */
-    @Query(value = LIST_ROW_SELECT + KEYWORD_CONDITION, countQuery = COUNT_BY_MEMBER + KEYWORD_CONDITION)
-    Page<MemoListRow> searchListRows(@Param("memberId") Long memberId, @Param("pattern") String pattern,
+    @Query(value = LIST_ROW_SELECT + KEYWORD_CONDITION, countQuery = COUNT_BY_USER + KEYWORD_CONDITION)
+    Page<MemoListRow> searchListRows(@Param("userId") Long userId, @Param("pattern") String pattern,
                                      Pageable pageable);
 
     /**
      * 회원의 메모를 할 일 목록과 함께 한 번에 조회한다. (상세 화면, 요약 결과 조회)
      *
-     * @param memoId   메모 ID
-     * @param memberId 작성자 회원 ID
+     * @param memoId 메모 ID
+     * @param userId 작성자 회원 ID
      * @return 할 일이 로딩된 메모, 없거나 다른 회원의 메모면 {@code Optional.empty()}
      */
     @EntityGraph(attributePaths = "todos")
-    Optional<Memo> findWithTodosByMemoIdAndMemberMemberId(Long memoId, Long memberId);
+    Optional<Memo> findWithTodosByMemoIdAndUserUserId(Long memoId, Long userId);
 
     /**
      * 회원의 메모를 조회한다. (수정·삭제·재요약)
      *
-     * @param memoId   메모 ID
-     * @param memberId 작성자 회원 ID
+     * @param memoId 메모 ID
+     * @param userId 작성자 회원 ID
      * @return 메모, 없거나 다른 회원의 메모면 {@code Optional.empty()}
      */
-    Optional<Memo> findByMemoIdAndMemberMemberId(Long memoId, Long memberId);
+    Optional<Memo> findByMemoIdAndUserUserId(Long memoId, Long userId);
 
     /**
      * 회원 메모의 요약 상태만 조회한다. (화면의 요약 상태 폴링)
      *
-     * @param memoId   메모 ID
-     * @param memberId 작성자 회원 ID
+     * @param memoId 메모 ID
+     * @param userId 작성자 회원 ID
      * @return 요약 상태, 없거나 다른 회원의 메모면 {@code Optional.empty()}
      */
-    @Query("SELECT m.summaryStatus FROM Memo m WHERE m.memoId = :memoId AND m.member.memberId = :memberId")
-    Optional<SummaryStatus> findSummaryStatus(@Param("memoId") Long memoId, @Param("memberId") Long memberId);
+    @Query("SELECT m.summaryStatus FROM Memo m WHERE m.memoId = :memoId AND m.user.userId = :userId")
+    Optional<SummaryStatus> findSummaryStatus(@Param("memoId") Long memoId, @Param("userId") Long userId);
 
 
     /**
@@ -114,27 +114,27 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
     /**
      * 회원의 메모 중 요약 상태가 주어진 값인 메모의 ID와 revision만 조회한다. (실패한 요약 재요청)
      *
-     * @param memberId 작성자 회원 ID
-     * @param status   요약 상태
+     * @param userId 작성자 회원 ID
+     * @param status 요약 상태
      * @return 메모 ID·revision 목록
      */
     @Query("""
             SELECT new io.dev.coding_test.dto.MemoRevision(m.memoId, m.revision) FROM Memo m
-            WHERE m.member.memberId = :memberId AND m.summaryStatus = :status
+            WHERE m.user.userId = :userId AND m.summaryStatus = :status
             """)
-    List<MemoRevision> findRevisions(@Param("memberId") Long memberId, @Param("status") SummaryStatus status);
+    List<MemoRevision> findRevisions(@Param("userId") Long userId, @Param("status") SummaryStatus status);
 
     /**
      * 회원의 메모 중 주어진 상태의 메모를 모두 요약 대기(PENDING) 상태로 바꾸고 실패 사유를 비운다. (일괄 UPDATE)
      *
-     * @param memberId 작성자 회원 ID
-     * @param from     변경 전 요약 상태
+     * @param userId 작성자 회원 ID
+     * @param from   변경 전 요약 상태
      * @return 변경된 메모 수
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             UPDATE Memo m SET m.summaryStatus = io.dev.coding_test.model.enums.SummaryStatus.PENDING, m.summaryError = NULL
-            WHERE m.member.memberId = :memberId AND m.summaryStatus = :from
+            WHERE m.user.userId = :userId AND m.summaryStatus = :from
             """)
-    int markPendingByStatus(@Param("memberId") Long memberId, @Param("from") SummaryStatus from);
+    int markPendingByStatus(@Param("userId") Long userId, @Param("from") SummaryStatus from);
 }
