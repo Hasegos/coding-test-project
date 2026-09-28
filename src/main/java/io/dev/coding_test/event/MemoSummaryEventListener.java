@@ -2,7 +2,7 @@ package io.dev.coding_test.event;
 
 import io.dev.coding_test.common.config.AsyncConfig;
 import io.dev.coding_test.common.util.SummaryStatusUtil;
-import io.dev.coding_test.model.Memo;
+import io.dev.coding_test.dto.MemoRevision;
 import io.dev.coding_test.repository.MemoRepository;
 import io.dev.coding_test.service.MemoSummaryService;
 import lombok.extern.slf4j.Slf4j;
@@ -53,12 +53,12 @@ public class MemoSummaryEventListener {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void resumeUnfinishedSummaries() {
-        List<Memo> unfinished = memoRepository.findBySummaryStatusIn(SummaryStatusUtil.IN_PROGRESS);
+        List<MemoRevision> unfinished = memoRepository.findRevisionsBySummaryStatusIn(SummaryStatusUtil.IN_PROGRESS);
         if (unfinished.isEmpty()) {
             return;
         }
         log.info("미완료 요약 재요청 - {}건", unfinished.size());
-        unfinished.forEach(memo -> dispatch(memo.getMemoId(), memo.getRevision()));
+        unfinished.forEach(memo -> dispatch(memo.memoId(), memo.revision()));
     }
 
     private void dispatch(Long memoId, long revision) {
