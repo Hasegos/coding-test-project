@@ -22,7 +22,13 @@
                 </span>
             </p>
         </div>
-        <div class="detail-head__actions" data-detail-actions></div>
+        <div class="detail-head__actions">
+            <a class="btn btn--sm" th:href="@{/memos/{id}/edit(id=${memo.memoId})}">수정</a>
+            <form th:action="@{/memos/{id}/delete(id=${memo.memoId})}" method="post"
+                  data-confirm="이 메모를 삭제할까요? 삭제한 메모는 복구할 수 없어요.">
+                <button class="btn btn--sm btn--danger" type="submit">삭제</button>
+            </form>
+        </div>
     </div>
 
     <div class="detail-layout">
