@@ -1,4 +1,4 @@
-package io.dev.coding_test.dto;
+package io.dev.coding_test.dto.memo;
 
 /**
  * 메모 ID와 revision만 담은 조회 결과. (요약 재요청 이벤트 발행용)
