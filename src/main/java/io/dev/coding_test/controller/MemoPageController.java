@@ -68,6 +68,61 @@ public class MemoPageController {
     }
 
     /**
+     * 메모 수정 페이지를 렌더링한다. 기존 제목/본문을 폼에 채워 전달한다.
+     *
+     * @param memoId 메모 ID
+     * @param model  뷰에 전달할 데이터 모델
+     * @return 메모 수정 폼 뷰 이름
+     */
+    @GetMapping("/{memoId}/edit")
+    public String editForm(@PathVariable Long memoId, Model model) {
+        MemoResponse memo = memoService.getMemo(memoId);
+        model.addAttribute("memoId", memoId);
+        model.addAttribute("memoRequest", new MemoRequest(memo.title(), memo.content()));
+        return "memo/form";
+    }
+
+    /**
+     * 메모를 수정하고 상세 페이지로 이동한다(PRG).
+     * 검증 실패 시 입력값을 유지한 채 수정 폼을 다시 렌더링한다.
+     *
+     * @param memoId             메모 ID
+     * @param request            메모 수정 요청
+     * @param bindingResult      검증 결과
+     * @param model              뷰에 전달할 데이터 모델
+     * @param redirectAttributes 리다이렉트 후 보여줄 메시지
+     * @return 상세 페이지 리다이렉트 또는 수정 폼 뷰 이름
+     */
+    @PostMapping("/{memoId}")
+    public String update(@PathVariable Long memoId,
+                         @Valid @ModelAttribute("memoRequest") MemoRequest request,
+                         BindingResult bindingResult,
+                         Model model,
+                         RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            model.addAttribute("memoId", memoId);
+            return "memo/form";
+        }
+        memoService.update(memoId, request);
+        redirectAttributes.addFlashAttribute("toast", "메모를 수정했어요.");
+        return "redirect:/memos/" + memoId;
+    }
+
+    /**
+     * 메모를 삭제하고 목록 페이지로 이동한다.
+     *
+     * @param memoId             메모 ID
+     * @param redirectAttributes 리다이렉트 후 보여줄 메시지
+     * @return 목록 페이지 리다이렉트
+     */
+    @PostMapping("/{memoId}/delete")
+    public String delete(@PathVariable Long memoId, RedirectAttributes redirectAttributes) {
+        memoService.delete(memoId);
+        redirectAttributes.addFlashAttribute("toast", "메모를 삭제했어요.");
+        return "redirect:/memos";
+    }
+
+    /**
      * 메모 작성 페이지를 렌더링한다.
      *
      * @param model 뷰에 전달할 데이터 모델
