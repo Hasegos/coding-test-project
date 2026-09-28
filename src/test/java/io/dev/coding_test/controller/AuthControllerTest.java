@@ -1,10 +1,10 @@
 package io.dev.coding_test.controller;
 
 import io.dev.coding_test.common.handler.SecurityAuthenticationEntryPoint;
-import io.dev.coding_test.common.security.LoginMember;
-import io.dev.coding_test.model.Member;
-import io.dev.coding_test.repository.MemberRepository;
-import io.dev.coding_test.service.MemberService;
+import io.dev.coding_test.common.security.CustomUserPrincipal;
+import io.dev.coding_test.model.User;
+import io.dev.coding_test.repository.UserRepository;
+import io.dev.coding_test.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -44,7 +44,7 @@ class AuthControllerTest {
     private WebApplicationContext context;
 
     @Autowired
-    private MemberRepository memberRepository;
+    private UserRepository userRepository;
 
     private MockMvc mockMvc;
 
@@ -61,9 +61,9 @@ class AuthControllerTest {
                 .andExpect(flash().attribute("toast", "가입이 완료됐어요. 로그인해주세요."))
                 .andExpect(flash().attribute("username", "hasegos"));
 
-        Member member = memberRepository.findByUsername("hasegos").orElseThrow();
-        assertThat(member.getNickname()).isEqualTo("하세고스");
-        assertThat(member.getPassword()).startsWith("{bcrypt}$2").doesNotContain("secret123");
+        User user = userRepository.findByUsername("hasegos").orElseThrow();
+        assertThat(user.getNickname()).isEqualTo("하세고스");
+        assertThat(user.getPassword()).startsWith("{bcrypt}$2").doesNotContain("secret123");
     }
 
     @Test
@@ -72,10 +72,10 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("auth/signup"))
                 .andExpect(model().attributeHasFieldErrors("signupRequest", "passwordConfirm"))
-                .andExpect(content().string(containsString(MemberService.PASSWORD_MISMATCH_MESSAGE)))
+                .andExpect(content().string(containsString(UserService.PASSWORD_MISMATCH_MESSAGE)))
                 .andExpect(content().string(not(containsString("secret123"))));
 
-        assertThat(memberRepository.existsByUsername("hasegos")).isFalse();
+        assertThat(userRepository.existsByUsername("hasegos")).isFalse();
     }
 
     @Test
@@ -85,7 +85,7 @@ class AuthControllerTest {
         mockMvc.perform(signup("hasegos", "other1234", "other1234", "두번째"))
                 .andExpect(status().isOk())
                 .andExpect(model().attributeHasFieldErrors("signupRequest", "username"))
-                .andExpect(content().string(containsString(MemberService.DUPLICATE_USERNAME_MESSAGE)));
+                .andExpect(content().string(containsString(UserService.DUPLICATE_USERNAME_MESSAGE)));
     }
 
     @ParameterizedTest
@@ -116,10 +116,10 @@ class AuthControllerTest {
                 .andExpect(redirectedUrl("/memos"))
                 .andReturn();
 
-        LoginMember principal = principal((MockHttpSession) result.getRequest().getSession());
+        CustomUserPrincipal principal = principal((MockHttpSession) result.getRequest().getSession());
         assertThat(principal.getUsername()).isEqualTo("hasegos");
         assertThat(principal.getNickname()).isEqualTo("하세고스");
-        assertThat(principal.getMemberId()).isNotNull();
+        assertThat(principal.getUserId()).isNotNull();
         assertThat(principal.getPassword()).isNull();
     }
 
@@ -223,10 +223,10 @@ class AuthControllerTest {
                 .param("nickname", nickname);
     }
 
-    private static LoginMember principal(MockHttpSession session) {
+    private static CustomUserPrincipal principal(MockHttpSession session) {
         SecurityContext securityContext = (SecurityContext) session.getAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
         Authentication authentication = securityContext.getAuthentication();
-        return (LoginMember) authentication.getPrincipal();
+        return (CustomUserPrincipal) authentication.getPrincipal();
     }
 }
