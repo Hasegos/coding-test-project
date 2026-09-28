@@ -1,6 +1,7 @@
-package io.dev.coding_test.common.security;
+package io.dev.coding_test.security.userdetails;
 
 import io.dev.coding_test.repository.UserRepository;
+import io.dev.coding_test.security.core.CustomUserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
