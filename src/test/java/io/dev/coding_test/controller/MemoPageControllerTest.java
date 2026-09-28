@@ -106,4 +106,59 @@ class MemoPageControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(view().name("error/error"));
     }
+
+    @Test
+    void 수정_페이지에_기존_내용을_채워서_보여준다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("초안", "초안 본문"));
+
+        mockMvc.perform(get("/memos/{id}/edit", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("memo/form"))
+                .andExpect(model().attribute("memoId", memo.memoId()))
+                .andExpect(content().string(containsString("메모 수정")))
+                .andExpect(content().string(containsString("초안 본문")))
+                .andExpect(content().string(containsString("action=\"/memos/" + memo.memoId() + "\"")));
+    }
+
+    @Test
+    void 수정_성공시_상세_페이지로_리다이렉트한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("초안", "초안 본문"));
+
+        mockMvc.perform(post("/memos/{id}", memo.memoId())
+                        .param("title", "최종")
+                        .param("content", "최종 본문"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/memos/" + memo.memoId()))
+                .andExpect(flash().attribute("toast", "메모를 수정했어요."));
+    }
+
+    @Test
+    void 수정_검증_실패시_수정_폼을_다시_보여준다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("초안", "초안 본문"));
+
+        mockMvc.perform(post("/memos/{id}", memo.memoId())
+                        .param("title", "최종")
+                        .param("content", " "))
+                .andExpect(status().isOk())
+                .andExpect(view().name("memo/form"))
+                .andExpect(model().attribute("memoId", memo.memoId()))
+                .andExpect(model().attributeHasFieldErrors("memoRequest", "content"));
+    }
+
+    @Test
+    void 삭제_성공시_목록으로_리다이렉트한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("삭제할 메모", "본문"));
+
+        mockMvc.perform(post("/memos/{id}/delete", memo.memoId()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/memos"))
+                .andExpect(flash().attribute("toast", "메모를 삭제했어요."));
+    }
+
+    @Test
+    void 존재하지_않는_메모_수정_페이지는_404_에러_페이지를_보여준다() throws Exception {
+        mockMvc.perform(get("/memos/{id}/edit", 9_999))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error/error"));
+    }
 }
