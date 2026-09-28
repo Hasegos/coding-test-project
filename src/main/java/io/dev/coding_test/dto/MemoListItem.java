@@ -1,6 +1,5 @@
 package io.dev.coding_test.dto;
 
-import io.dev.coding_test.model.Memo;
 import io.dev.coding_test.model.enums.SummaryStatus;
 
 import java.time.LocalDateTime;
@@ -26,15 +25,15 @@ public record MemoListItem(Long memoId,
 
     public static final int PREVIEW_LENGTH = 140;
 
-    public static MemoListItem from(Memo memo) {
+    public static MemoListItem from(MemoListRow row) {
         return new MemoListItem(
-                memo.getMemoId(),
-                memo.getTitle(),
-                preview(memo.getContent()),
-                memo.getCreatedAt(),
-                memo.getUpdatedAt(),
-                memo.getSummaryStatus(),
-                memo.getTodos().size()
+                row.memoId(),
+                row.title(),
+                preview(row.contentHead()),
+                row.createdAt(),
+                row.updatedAt(),
+                row.summaryStatus(),
+                row.todoCount()
         );
     }
 

@@ -185,4 +185,17 @@ class MemoApiControllerTest {
         mockMvc.perform(post("/api/memos/{id}/summary", 9_999))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void 요약_상태만_조회한다() throws Exception {
+        MemoResponse memo = memoService.create(new MemoRequest("주간 회의", "배포 일정 논의"));
+
+        mockMvc.perform(get("/api/memos/{id}/summary/status", memo.memoId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.inProgress").value(true))
+                .andExpect(jsonPath("$.summary").doesNotExist());
+        mockMvc.perform(get("/api/memos/{id}/summary/status", 9_999))
+                .andExpect(status().isNotFound());
+    }
 }

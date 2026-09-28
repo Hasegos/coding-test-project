@@ -3,6 +3,7 @@ package io.dev.coding_test.service;
 import io.dev.coding_test.common.exception.NotFoundException;
 import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.MemoListItem;
+import io.dev.coding_test.dto.MemoListRow;
 import io.dev.coding_test.dto.MemoRequest;
 import io.dev.coding_test.dto.MemoResponse;
 import io.dev.coding_test.model.Memo;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 /**
  * 메모 작성·조회·수정·삭제 비즈니스 로직을 처리하는 서비스.
@@ -63,13 +65,16 @@ public class MemoService {
      */
     @Transactional(readOnly = true)
     public MemoResponse getMemo(Long memoId) {
-        return MemoResponse.from(findMemo(memoId));
+        Memo memo = memoRepository.findWithTodosByMemoId(memoId)
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId));
+        return MemoResponse.from(memo);
     }
 
     /**
      * 메모 목록을 최신순으로 조회한다. 키워드가 있으면 제목/본문에 포함된 메모만 조회한다.
      * <p>
      * 음수 페이지는 0으로, 페이지 크기는 1~{@value #MAX_PAGE_SIZE} 범위로 보정한다.
+     * 목록에 필요한 컬럼만 projection으로 조회한다(본문 앞부분, 할 일 개수).
      * </p>
      *
      * @param keyword 검색 키워드, null 또는 공백이면 전체 조회
@@ -86,10 +91,22 @@ public class MemoService {
         );
 
         String trimmed = keyword == null ? "" : keyword.strip();
-        Page<Memo> memos = trimmed.isEmpty()
-                ? memoRepository.findAll(pageable)
-                : memoRepository.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCase(trimmed, trimmed, pageable);
-        return memos.map(MemoListItem::from);
+        Page<MemoListRow> rows = trimmed.isEmpty()
+                ? memoRepository.findListRows(pageable)
+                : memoRepository.searchListRows(likePattern(trimmed), pageable);
+        return rows.map(MemoListItem::from);
+    }
+
+    /**
+     * 검색 키워드를 소문자 LIKE 패턴({@code %키워드%})으로 만든다.
+     * 키워드의 역슬래시·%·_는 와일드카드로 해석되지 않도록 역슬래시로 이스케이프한다.
+     */
+    private static String likePattern(String keyword) {
+        String escaped = keyword.toLowerCase(Locale.ROOT)
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+        return "%" + escaped + "%";
     }
 
     /**
