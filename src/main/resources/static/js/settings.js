@@ -18,7 +18,7 @@
         const testButton = form.querySelector('[data-test-connection]');
 
         /* ===================== 주소 붙여넣기 정리 ===================== */
-        // LM Studio의 "Reachable at" 값(http://100.66.180.73:1234)처럼 주소 전체를 붙여넣으면 IP와 포트로 나눈다.
+        // LM Studio의 "Reachable at" 값(http://100.x.x.x:1234)처럼 주소 전체를 붙여넣으면 IP와 포트로 나눈다.
         function normalizeHost() {
             const value = hostInput.value.trim();
             let host = value;
