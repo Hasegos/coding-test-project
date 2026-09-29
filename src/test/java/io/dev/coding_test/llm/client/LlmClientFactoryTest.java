@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.dev.coding_test.llm.config.LlmProperties;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.exception.LlmUnavailableException;
 import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.provider.lmstudio.LmStudioLlmClient;
@@ -171,7 +172,7 @@ class LlmClientFactoryTest {
         LlmClient client = factory.create(connection(LlmProvider.OLLAMA, closedPort, null));
 
         assertThatThrownBy(() -> client.summarize("제목", "본문"))
-                .isInstanceOf(LlmException.class)
+                .isInstanceOf(LlmUnavailableException.class)
                 .hasMessageContaining("연결할 수 없어요")
                 .hasMessageContaining("127.0.0.1:" + closedPort)
                 .hasMessageContaining("IP·포트를 확인해주세요");
@@ -207,7 +208,7 @@ class LlmClientFactoryTest {
             LlmClient client = slowFactory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
 
             assertThatThrownBy(() -> client.summarize("제목", "본문"))
-                    .isInstanceOf(LlmException.class)
+                    .isInstanceOf(LlmUnavailableException.class)
                     .hasMessageContaining("응답 시간");
         } finally {
             server.stop(0);
