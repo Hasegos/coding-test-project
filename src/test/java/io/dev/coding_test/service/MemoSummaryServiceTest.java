@@ -269,7 +269,7 @@ class MemoSummaryServiceTest {
     @Test
     void 요약은_메모_작성자의_LLM_설정으로_실행한다() {
         Long otherId = testUsers.create("other").getUserId();
-        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.20", 11434,
+        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.OLLAMA, "100.100.0.20", 11434,
                 "llama3.2:3b", null, false));
 
         MemoResponse memo = memoService.create(otherId, new MemoRequest("다른 회원 메모", "본문"));
@@ -277,7 +277,7 @@ class MemoSummaryServiceTest {
 
         LlmConnection connection = fakeLlmClientFactory.lastConnection();
         assertThat(connection.provider()).isEqualTo(LlmProvider.OLLAMA);
-        assertThat(connection.baseUrl()).isEqualTo("http://192.168.0.20:11434");
+        assertThat(connection.baseUrl()).isEqualTo("http://100.100.0.20:11434");
         assertThat(connection.model()).isEqualTo("llama3.2:3b");
     }
 
@@ -313,7 +313,7 @@ class MemoSummaryServiceTest {
     @Test
     void 한_회원의_LLM_서버가_느려도_다른_서버를_쓰는_회원의_요약은_기다리지_않는다() throws InterruptedException {
         Long otherId = testUsers.create("other").getUserId();
-        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.20", 11434,
+        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.OLLAMA, "100.100.0.20", 11434,
                 "llama3.2:3b", null, false));
         CountDownLatch slowEntered = new CountDownLatch(1);
         CountDownLatch releaseSlow = new CountDownLatch(1);

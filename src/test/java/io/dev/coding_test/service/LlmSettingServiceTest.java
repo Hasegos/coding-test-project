@@ -71,7 +71,7 @@ class LlmSettingServiceTest {
 
     @Test
     void 접속_설정을_단일_행으로_저장하고_다시_저장하면_덮어쓴다() {
-        llmSettingService.save(userId, request(LlmProvider.OLLAMA, " 192.168.0.10 ", 11434, " qwen2.5:7b ", null, false));
+        llmSettingService.save(userId, request(LlmProvider.OLLAMA, " 100.100.0.10 ", 11434, " qwen2.5:7b ", null, false));
         LlmSettingResponse saved = llmSettingService.save(userId, 
                 request(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, "qwen2.5-vl-7b-instruct", null, false));
 
@@ -86,21 +86,21 @@ class LlmSettingServiceTest {
     @Test
     void 저장_시_앞뒤_공백을_제거한다() {
         LlmSettingResponse saved = llmSettingService.save(userId, 
-                request(LlmProvider.OLLAMA, " 192.168.0.10 ", 11434, " qwen2.5:7b ", null, false));
+                request(LlmProvider.OLLAMA, " 100.100.0.10 ", 11434, " qwen2.5:7b ", null, false));
 
-        assertThat(saved.host()).isEqualTo("192.168.0.10");
+        assertThat(saved.host()).isEqualTo("100.100.0.10");
         assertThat(saved.model()).isEqualTo("qwen2.5:7b");
     }
 
     @Test
     void API_Key는_비워두면_유지하고_삭제를_선택하면_지운다() {
-        llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", "secret", false));
+        llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "100.100.0.10", 1234, "model", "secret", false));
 
-        LlmSettingResponse kept = llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", "", false));
+        LlmSettingResponse kept = llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "100.100.0.10", 1234, "model", "", false));
         assertThat(kept.hasApiKey()).isTrue();
         assertThat(llmSettingService.findConnection(userId)).get().extracting(LlmConnection::apiKey).isEqualTo("secret");
 
-        LlmSettingResponse cleared = llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", null, true));
+        LlmSettingResponse cleared = llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "100.100.0.10", 1234, "model", null, true));
         assertThat(cleared.hasApiKey()).isFalse();
     }
 
@@ -133,9 +133,9 @@ class LlmSettingServiceTest {
 
     @Test
     void 연결_테스트에서_API_Key를_비워두면_저장된_키를_사용한다() {
-        llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "model", "secret", false));
+        llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, "100.100.0.10", 1234, "model", "secret", false));
 
-        llmSettingService.testConnection(userId, new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, ""));
+        llmSettingService.testConnection(userId, new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.100.0.10", 1234, ""));
 
         assertThat(fakeLlmClientFactory.lastConnection().apiKey()).isEqualTo("secret");
     }
