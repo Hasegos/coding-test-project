@@ -61,6 +61,17 @@ public class LlmSettingService {
     }
 
     /**
+     * 회원의 LLM 서버 주소({@code host:port})를 조회한다. (요약 대기열 선택용)
+     *
+     * @param userId 회원 ID (메모 작성자)
+     * @return {@code host:port}, 아직 설정하지 않았으면 {@code Optional.empty()}
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> findServerAddress(Long userId) {
+        return llmSettingRepository.findServerAddress(userId);
+    }
+
+    /**
      * 요약에 사용할 회원의 접속 정보를 조회한다.
      *
      * @param userId 회원 ID (메모 작성자)
