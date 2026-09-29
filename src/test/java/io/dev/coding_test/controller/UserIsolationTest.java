@@ -131,7 +131,7 @@ class UserIsolationTest {
 
         mockMvc.perform(put("/api/settings/llm").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.20", "port": 11434, "model": "llama3.2:3b"}
+                                {"provider": "OLLAMA", "host": "100.100.0.20", "port": 11434, "model": "llama3.2:3b"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasApiKey").value(false));
@@ -142,6 +142,6 @@ class UserIsolationTest {
                     assertThat(setting.hasApiKey()).isTrue();
                 });
         assertThat(llmSettingService.getSetting(other.getUserId())).get()
-                .satisfies(setting -> assertThat(setting.host()).isEqualTo("192.168.0.20"));
+                .satisfies(setting -> assertThat(setting.host()).isEqualTo("100.100.0.20"));
     }
 }

@@ -97,6 +97,22 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
     word-break: keep-all;
 }
 .settings-help__list strong { display: block; color: var(--text); }
+.settings-help__desc {
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    word-break: keep-all;
+}
+.settings-help a,
+.field__link {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.settings-help a:hover,
+.field__link:hover { color: var(--primary-hover); }
+.settings-help { scroll-margin-top: 80px; }
 .settings-help__list code {
     font-family: var(--mono);
     font-size: 12px;

@@ -3,6 +3,8 @@ package io.dev.coding_test.controller.view;
 import io.dev.coding_test.common.exception.TooManyRequestsException;
 import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.dto.setting.LlmSettingResponse;
+import io.dev.coding_test.llm.guard.LlmGuardProperties;
+import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.security.core.LoginUserId;
 import io.dev.coding_test.service.LlmSettingService;
@@ -28,6 +30,8 @@ public class SettingPageController {
 
     private final LlmSettingService llmSettingService;
     private final MemoSummaryService memoSummaryService;
+    private final LlmHostGuard llmHostGuard;
+    private final LlmGuardProperties llmGuardProperties;
 
     /**
      * LLM 설정 화면을 렌더링한다. 저장된 설정이 있으면 폼에 채워서 보여준다. (API Key 값은 채우지 않음)
@@ -88,6 +92,8 @@ public class SettingPageController {
 
     private void addFormAttributes(Long userId, Model model) {
         model.addAttribute("providers", LlmProvider.values());
+        model.addAttribute("tailscaleOnly", llmHostGuard.isTailscaleOnly());
+        model.addAttribute("shareEmail", llmGuardProperties.shareEmail());
         model.addAttribute("hasApiKey", llmSettingService.getSetting(userId).map(LlmSettingResponse::hasApiKey).orElse(false));
     }
 }

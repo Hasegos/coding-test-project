@@ -41,7 +41,8 @@
                     <label class="field__label" for="host">서버 IP</label>
                     <input class="field__input" id="host" type="text" th:field="*{host}"
                            th:classappend="${#fields.hasErrors('host')} ? 'field__input--error'"
-                           placeholder="예) 192.168.0.10 또는 100.66.180.73" maxlength="45" inputmode="text"
+                           th:placeholder="${tailscaleOnly} ? '예) 100.66.180.73 (LLM PC의 Tailscale IP)' : '예) 192.168.0.10 또는 100.66.180.73'"
+                           maxlength="45" inputmode="text"
                            autocomplete="off" spellcheck="false" autocapitalize="off" required>
                     <p class="field__error" th:if="${#fields.hasErrors('host')}" th:errors="*{host}"></p>
                 </div>
@@ -53,7 +54,12 @@
                     <p class="field__error" th:if="${#fields.hasErrors('port')}" th:errors="*{port}"></p>
                 </div>
             </div>
-            <p class="field__hint">
+            <p class="field__hint" th:if="${tailscaleOnly}">
+                LLM PC의 <strong>Tailscale IP(100.x.x.x)</strong>만 입력할 수 있어요.
+                LLM PC가 집·학교 등 어느 네트워크에 있든 같은 방법으로 연결돼요.
+                <a class="field__link" href="#tailscale-guide">연결 가이드 보기</a>
+            </p>
+            <p class="field__hint" th:unless="${tailscaleOnly}">
                 보안을 위해 LLM 서버 PC의 로컬 IP만 입력할 수 있어요 — 10.x · 172.16~31.x · 192.168.x · Tailscale 100.64~127.x (IPv6 fd00::/8 포함)<br>
                 localhost·127.0.0.1(루프백), 169.254.x(링크 로컬), 공인 IP, 도메인은 사용할 수 없어요.
             </p>
@@ -94,28 +100,40 @@
             </div>
         </form>
 
-        <aside class="settings-help card">
-            <h2 class="settings-help__title">연결 방법</h2>
+        <aside class="settings-help card" id="tailscale-guide">
+            <h2 class="settings-help__title">Tailscale 연결 가이드</h2>
+            <p class="settings-help__desc">
+                요약은 이 서비스의 서버가 LLM PC에 직접 요청해요. 가정·학교의 PC는 공유기 뒤의 사설 IP를 쓰기 때문에
+                밖에서 바로 접속할 수 없어, <strong>Tailscale</strong>로 서버와 LLM PC를 연결합니다.
+            </p>
             <ol class="settings-help__list">
                 <li>
-                    <strong>LM Studio</strong>
-                    Developer 탭에서 서버를 시작하고 Server Settings의 <em>Serve on Local Network</em>를 켜세요.
-                    화면의 <code>Reachable at</code> 주소(<code>http://IP:1234</code>)를 서버 IP 칸에 붙여넣으면 IP·포트가 자동으로 나뉩니다.
+                    <strong>Tailscale 설치</strong>
+                    LLM을 실행할 PC에 <a href="https://tailscale.com/download" target="_blank" rel="noopener noreferrer">Tailscale</a>을
+                    설치하고 로그인하세요.
                 </li>
                 <li>
-                    <strong>Ollama</strong>
-                    다른 PC에서 접속하려면 <code>OLLAMA_HOST=0.0.0.0</code>으로 실행하세요. 기본 포트는 11434입니다.
+                    <strong>LLM PC 공유</strong>
+                    <a href="https://login.tailscale.com/admin/machines" target="_blank" rel="noopener noreferrer">Tailscale 관리 페이지</a>의
+                    Machines에서 LLM PC의 <em>⋯ → Share</em>를 눌러
+                    <th:block th:if="${!#strings.isEmpty(shareEmail)}">서비스 운영자(<code th:text="${shareEmail}">admin@example.com</code>)</th:block><th:block th:if="${#strings.isEmpty(shareEmail)}">서비스 운영자</th:block>에게
+                    공유하세요. 운영자와 같은 Tailscale 계정으로 로그인했다면 건너뜁니다.
                 </li>
                 <li>
-                    <strong>같은 PC에서 실행 중이라면</strong>
-                    localhost 대신 그 PC의 사설 IP(<code>ipconfig</code> / <code>ip addr</code>로 확인한 192.168.x.x 등)를 입력하세요.
+                    <strong>LLM 서버 열기</strong>
+                    LM Studio는 Developer 탭에서 서버를 시작하고 Server Settings의 <em>Serve on Local Network</em>를 켜세요.
+                    Ollama는 <code>OLLAMA_HOST=0.0.0.0</code>으로 실행하세요.
+                    인증 토큰을 설정했다면 API Key 칸에 입력합니다.
                 </li>
                 <li>
-                    <strong>Tailscale</strong>
-                    LLM 서버 PC에서 <code>tailscale ip -4</code>로 확인한 100.x.x.x 주소를 입력합니다.
+                    <strong>Tailscale IP 입력</strong>
+                    LLM PC에서 <code>tailscale ip -4</code>를 실행하거나 Tailscale 앱 메뉴에서 <code>100.x.x.x</code> 주소를 확인해 입력하세요.
+                    LM Studio의 <code>Reachable at</code> 주소가 <code>http://100.x.x.x:1234</code>라면 그대로 붙여넣어도 돼요.
                 </li>
                 <li>
-                    <strong>연결 테스트</strong>로 모델 목록을 불러와 선택한 뒤 저장하세요.
+                    <strong>연결 테스트 후 저장</strong>
+                    모델 목록을 불러와 선택한 뒤 저장하세요. 연결되지 않으면 LLM PC의 방화벽에서
+                    포트(LM Studio 1234 · Ollama 11434) 인바운드 허용을 확인하세요.
                     저장하면 요약에 실패했던 메모를 자동으로 다시 요약합니다.
                 </li>
             </ol>

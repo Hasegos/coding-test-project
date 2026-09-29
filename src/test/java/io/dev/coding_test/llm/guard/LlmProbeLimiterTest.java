@@ -12,7 +12,7 @@ class LlmProbeLimiterTest {
 
     private final MutableClock clock = new MutableClock();
     private final LlmProbeLimiter limiter =
-            new LlmProbeLimiter(new LlmGuardProperties(List.of(), List.of(), 3, Duration.ofMinutes(1)), clock);
+            new LlmProbeLimiter(new LlmGuardProperties(List.of(), List.of(), 3, Duration.ofMinutes(1), null), clock);
 
     @Test
     void 시간_안에_허용_횟수를_넘으면_남은_시간을_돌려준다() {

@@ -32,8 +32,9 @@ import java.util.stream.Collectors;
  *     <li>링크 로컬(169.254.x · 클라우드 메타데이터), 멀티캐스트, 예약·문서용 대역 거부</li>
  *     <li>공인 IP 거부 (로컬 전용), 데이터베이스 서버 주소 거부</li>
  *     <li>허용: 사설망(10/8, 172.16/12, 192.168/16), Tailscale(100.64/10), IPv6 ULA(fc00::/7)</li>
- *     <li>{@code llm.guard.allowed-networks}를 설정하면 그 대역만, {@code llm.guard.allowed-ports}에 있는 포트만 허용
+ *     <li>{@code llm.guard.allowed-networks}의 대역만, {@code llm.guard.allowed-ports}에 있는 포트만 허용
  *         — 서버가 속한 내부망의 다른 장비·포트를 확인하는 데 쓰이지 않도록 범위를 좁힌다.</li>
+ *     <li>기본값은 Tailscale 대역만 허용한다. 이때 루프백·공인 IP·다른 사설망 주소는 모두 Tailscale 연결 안내로 거부한다.</li>
  * </ul>
  */
 @Slf4j
@@ -53,6 +54,11 @@ public class LlmHostGuard {
     public static final String DATABASE_MESSAGE = "데이터베이스 서버 주소는 LLM 서버로 사용할 수 없어요.";
     public static final String NETWORK_MESSAGE_PREFIX = "이 서비스에서 허용하지 않은 네트워크 주소예요. 허용 대역: ";
     public static final String PORT_MESSAGE_PREFIX = "이 서비스에서 허용하지 않은 포트예요. 허용 포트: ";
+    public static final String TAILSCALE_ONLY_MESSAGE =
+            "Tailscale IP(100.x.x.x)만 사용할 수 있어요. LLM 설정 화면의 Tailscale 연결 가이드를 따라 LLM PC를 연결한 뒤 그 PC의 Tailscale IP를 입력해주세요.";
+
+    private static final List<IpRange> TAILSCALE_RANGES =
+            LlmGuardProperties.TAILSCALE_NETWORKS.stream().map(IpRange::parse).toList();
 
     /** 루프백으로 연결되는 로컬 호스트명 (Docker 호스트 포함) */
     private static final Set<String> LOCAL_HOSTNAMES = Set.of(
@@ -68,6 +74,7 @@ public class LlmHostGuard {
     private volatile Set<InetAddress> databaseAddresses;
     private final List<IpRange> allowedNetworks;
     private final Set<Integer> allowedPorts;
+    private final boolean tailscaleOnly;
 
     /**
      * @param databaseHost 데이터베이스 서버 주소 (LLM 서버로 쓰지 못하게 막는다)
@@ -78,6 +85,8 @@ public class LlmHostGuard {
         this.databaseHost = databaseHost == null ? "" : databaseHost.strip().toLowerCase(Locale.ROOT);
         this.allowedNetworks = properties.allowedNetworks().stream().map(IpRange::parse).toList();
         this.allowedPorts = new TreeSet<>(properties.allowedPorts());
+        this.tailscaleOnly = !allowedNetworks.isEmpty() && allowedNetworks.stream()
+                .allMatch(range -> TAILSCALE_RANGES.stream().anyMatch(tailscale -> tailscale.containsRange(range)));
         if (!allowedNetworks.isEmpty() || !allowedPorts.isEmpty()) {
             log.info("LLM 서버 허용 범위 - 대역: {}, 포트: {}",
                     allowedNetworks.isEmpty() ? "사설망·Tailscale 전체" : allowedNetworks,
@@ -109,7 +118,7 @@ public class LlmHostGuard {
             return Optional.of(URL_MESSAGE);
         }
         if (LOCAL_HOSTNAMES.contains(host) || host.endsWith(".localhost")) {
-            return Optional.of(LOCALHOST_MESSAGE);
+            return Optional.of(tailscaleOr(LOCALHOST_MESSAGE));
         }
 
         Optional<InetAddress> parsed = IpAddressUtil.parseLiteral(host);
@@ -119,15 +128,15 @@ public class LlmHostGuard {
 
         InetAddress address = parsed.get();
         return switch (IpAddressUtil.classify(address)) {
-            case LOOPBACK -> Optional.of(LOCALHOST_MESSAGE);
+            case LOOPBACK -> Optional.of(tailscaleOr(LOCALHOST_MESSAGE));
             case BLOCKED -> Optional.of(BLOCKED_MESSAGE);
-            case PUBLIC -> Optional.of(PUBLIC_MESSAGE);
+            case PUBLIC -> Optional.of(tailscaleOr(PUBLIC_MESSAGE));
             case PRIVATE -> {
                 if (host.equals(databaseHost) || databaseAddresses().contains(address)) {
                     yield Optional.of(DATABASE_MESSAGE);
                 }
                 if (!allowedNetworks.isEmpty() && allowedNetworks.stream().noneMatch(range -> range.contains(address))) {
-                    yield Optional.of(NETWORK_MESSAGE_PREFIX + join(allowedNetworks));
+                    yield Optional.of(tailscaleOr(NETWORK_MESSAGE_PREFIX + join(allowedNetworks)));
                 }
                 yield Optional.empty();
             }
@@ -159,6 +168,20 @@ public class LlmHostGuard {
             log.warn("LLM 서버 주소 거부 - host: {}, port: {}, 사유: {}", host, port, reason);
             throw new LlmException(reason);
         });
+    }
+
+    /**
+     * Tailscale 대역만 허용하는지 여부. (설정 화면의 안내 문구 선택용)
+     *
+     * @return Tailscale 대역만 허용하면 {@code true}
+     */
+    public boolean isTailscaleOnly() {
+        return tailscaleOnly;
+    }
+
+    /** Tailscale만 허용할 때는 어떤 주소를 넣었든 Tailscale 연결 안내 하나로 답한다. */
+    private String tailscaleOr(String message) {
+        return tailscaleOnly ? TAILSCALE_ONLY_MESSAGE : message;
     }
 
     private static String join(Collection<?> values) {
