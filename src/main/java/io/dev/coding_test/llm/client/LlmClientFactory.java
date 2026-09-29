@@ -57,10 +57,10 @@ public class LlmClientFactory {
      *
      * @param connection LLM 서버 접속 정보
      * @return LLM 클라이언트
-     * @throws io.dev.coding_test.llm.exception.LlmException LLM 서버로 사용할 수 없는 주소인 경우
+     * @throws io.dev.coding_test.llm.exception.LlmException LLM 서버로 사용할 수 없는 주소·포트인 경우
      */
     public LlmClient getClient(LlmConnection connection) {
-        llmHostGuard.check(connection.host());
+        llmHostGuard.check(connection.host(), connection.port());
         synchronized (cache) {
             LlmClient cached = cache.get(connection);
             if (cached != null) {
@@ -78,10 +78,10 @@ public class LlmClientFactory {
      *
      * @param connection LLM 서버 접속 정보
      * @return LLM 클라이언트
-     * @throws io.dev.coding_test.llm.exception.LlmException LLM 서버로 사용할 수 없는 주소인 경우
+     * @throws io.dev.coding_test.llm.exception.LlmException LLM 서버로 사용할 수 없는 주소·포트인 경우
      */
     public LlmClient create(LlmConnection connection) {
-        llmHostGuard.check(connection.host());
+        llmHostGuard.check(connection.host(), connection.port());
         HttpClient httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.NEVER)

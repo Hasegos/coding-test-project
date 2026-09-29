@@ -1,6 +1,7 @@
 package io.dev.coding_test.common.handler;
 
 import io.dev.coding_test.common.exception.NotFoundException;
+import io.dev.coding_test.common.exception.TooManyRequestsException;
 import io.dev.coding_test.dto.common.ErrorResponse;
 import io.dev.coding_test.llm.exception.LlmException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,6 +43,19 @@ public class ApiExceptionHandler {
         log.warn("[404] API NotFoundException 발생: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(404, e.getMessage()));
+    }
+
+    /**
+     * 짧은 시간에 같은 요청을 너무 많이 보낸 경우를 처리한다. (429)
+     *
+     * @param e 발생한 TooManyRequestsException
+     * @return 429 에러 응답
+     */
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException e) {
+        log.warn("[429] 요청 횟수 초과: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(429, e.getMessage()));
     }
 
     /**

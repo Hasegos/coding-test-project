@@ -1,5 +1,6 @@
 package io.dev.coding_test.service;
 
+import io.dev.coding_test.common.exception.TooManyRequestsException;
 import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.setting.LlmConnectionTestRequest;
 import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
@@ -8,6 +9,7 @@ import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.llm.client.LlmClientFactory;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.guard.LlmProbeLimiter;
 import io.dev.coding_test.model.LlmSetting;
 import io.dev.coding_test.repository.LlmSettingRepository;
 import io.dev.coding_test.repository.UserRepository;
@@ -37,6 +39,7 @@ public class LlmSettingService {
     private final LlmSettingRepository llmSettingRepository;
     private final UserRepository userRepository;
     private final LlmClientFactory llmClientFactory;
+    private final LlmProbeLimiter llmProbeLimiter;
 
     /**
      * 회원의 접속 설정을 조회한다.
@@ -93,6 +96,7 @@ public class LlmSettingService {
      * @param userId  회원 ID
      * @param request 접속 설정 저장 요청 (검증 완료)
      * @return 저장된 설정
+     * @throws TooManyRequestsException 런타임·주소·포트를 짧은 시간에 너무 자주 바꾼 경우
      */
     @Transactional
     public LlmSettingResponse save(Long userId, LlmSettingRequest request) {
@@ -101,6 +105,11 @@ public class LlmSettingService {
             created.setUser(userRepository.getReferenceById(userId));
             return created;
         });
+        if (isAddressChanged(setting, request)) {
+            llmProbeLimiter.tryAcquire(userId).ifPresent(retryAfter -> {
+                throw new TooManyRequestsException(LlmProbeLimiter.message(retryAfter));
+            });
+        }
 
         setting.setProvider(request.getProvider());
         setting.setHost(request.getHost().strip());
@@ -123,6 +132,7 @@ public class LlmSettingService {
      * 입력한 접속 정보로 LLM 서버에 연결해 사용할 수 있는 모델 목록을 조회한다. (연결 테스트)
      * <p>
      * API Key를 비워두면 회원이 저장한 토큰을 사용한다. 연결 실패도 예외가 아니라 {@code ok = false} 결과로 돌려준다.
+     * 짧은 시간에 너무 많이 시도하면({@link LlmProbeLimiter}) 연결하지 않고 안내 메시지를 돌려준다.
      * </p>
      *
      * @param userId  회원 ID
@@ -131,6 +141,10 @@ public class LlmSettingService {
      */
     @Transactional(readOnly = true)
     public LlmConnectionTestResponse testConnection(Long userId, LlmConnectionTestRequest request) {
+        Optional<Duration> limited = llmProbeLimiter.tryAcquire(userId);
+        if (limited.isPresent()) {
+            return LlmConnectionTestResponse.failure(0, LlmProbeLimiter.message(limited.get()));
+        }
         String apiKey = hasText(request.apiKey())
                 ? request.apiKey().strip()
                 : llmSettingRepository.findById(userId).map(LlmSetting::getApiKey).orElse(null);
@@ -144,6 +158,16 @@ public class LlmSettingService {
         } catch (LlmException e) {
             return LlmConnectionTestResponse.failure(elapsedMillis(start), e.getMessage());
         }
+    }
+
+    /**
+     * 저장된 설정과 런타임·주소·포트가 다른지 확인한다. (처음 저장하는 경우 포함)
+     */
+    private static boolean isAddressChanged(LlmSetting setting, LlmSettingRequest request) {
+        return setting.getHost() == null
+                || setting.getProvider() != request.getProvider()
+                || !setting.getHost().equals(request.getHost().strip())
+                || setting.getPort() != request.getPort();
     }
 
     private static long elapsedMillis(long startNanos) {

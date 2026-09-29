@@ -1,13 +1,10 @@
 package io.dev.coding_test.security.attempt;
 
 import io.dev.coding_test.security.config.LoginAttemptProperties;
+import io.dev.coding_test.support.MutableClock;
 import org.junit.jupiter.api.Test;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -110,30 +107,5 @@ class LoginAttemptServiceTest {
         }
 
         assertThat(service.lockedFor("198.51.100.7", EMAIL)).isEmpty();
-    }
-
-    /** 테스트에서 시각을 앞으로 옮길 수 있는 시계 */
-    private static final class MutableClock extends Clock {
-
-        private Instant now = Instant.parse("2026-01-01T00:00:00Z");
-
-        void advance(Duration duration) {
-            now = now.plus(duration);
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
     }
 }
