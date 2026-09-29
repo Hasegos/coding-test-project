@@ -66,10 +66,10 @@
 
             <!-- API Key -->
             <div class="field">
-                <label class="field__label" for="apiKey">API Key <span class="field__optional">(선택)</span></label>
+                <label class="field__label" for="apiKey">API Key <span class="field__optional">(권장)</span></label>
                 <input class="field__input" id="apiKey" type="password" th:field="*{apiKey}"
                        th:classappend="${#fields.hasErrors('apiKey')} ? 'field__input--error'"
-                       th:placeholder="${hasApiKey} ? '저장된 키 사용 중 — 비워두면 유지' : 'LM Studio 인증을 켠 경우에만 입력'"
+                       th:placeholder="${hasApiKey} ? '저장된 키 사용 중 — 비워두면 유지' : 'LM Studio에서 켠 인증 토큰 (다른 회원의 무단 사용 방지)'"
                        maxlength="200" autocomplete="new-password">
                 <label class="checkbox" th:if="${hasApiKey}">
                     <input type="checkbox" th:field="*{clearApiKey}"> 저장된 API Key 삭제
@@ -120,10 +120,11 @@
                     공유하세요. 운영자와 같은 Tailscale 계정으로 로그인했다면 건너뜁니다.
                 </li>
                 <li>
-                    <strong>LLM 서버 열기</strong>
-                    LM Studio는 Developer 탭에서 서버를 시작하고 Server Settings의 <em>Serve on Local Network</em>를 켜세요.
-                    Ollama는 <code>OLLAMA_HOST=0.0.0.0</code>으로 실행하세요.
-                    인증 토큰을 설정했다면 API Key 칸에 입력합니다.
+                    <strong>LLM 서버 열기 · 인증 토큰 켜기 (필수)</strong>
+                    LM Studio는 Developer 탭에서 서버를 시작하고 Server Settings의 <em>Serve on Local Network</em>를 켠 뒤,
+                    <strong class="settings-help__inline">인증(API 토큰)을 켜고</strong> 만든 토큰을 API Key 칸에 입력하세요.
+                    토큰이 없으면 내 LLM PC의 IP를 아는 다른 회원이 내 LLM을 쓸 수 있어요.
+                    Ollama는 자체 인증이 없어 LM Studio를 권장해요. (Ollama는 <code>OLLAMA_HOST=0.0.0.0</code>으로 실행)
                 </li>
                 <li>
                     <strong>Tailscale IP 입력</strong>
