@@ -105,7 +105,7 @@ class SettingApiControllerTest {
         mockMvc.perform(put("/api/settings/llm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 70000, "model": "bad model<script>"}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 70000, "model": "bad model<script>"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.length()").value(2));
@@ -119,7 +119,7 @@ class SettingApiControllerTest {
                                 {"provider": "OLLAMA", "host": "127.0.0.1", "port": 11434, "model": "qwen2.5:7b"}
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.LOCALHOST_MESSAGE));
+                .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.TAILSCALE_ONLY_MESSAGE));
 
         mockMvc.perform(put("/api/settings/llm")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -138,8 +138,21 @@ class SettingApiControllerTest {
                 .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.URL_MESSAGE));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"192.168.0.10", "10.0.0.5", "172.16.0.1", "fd00::1", "8.8.8.8", "61.72.10.20"})
+    void 기본_설정에서는_Tailscale_IP가_아니면_연결_가이드를_안내하며_거부한다(String host) throws Exception {
+        mockMvc.perform(put("/api/settings/llm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "LMSTUDIO", "host": "%s", "port": 1234, "model": "qwen2.5:7b"}
+                                """.formatted(host)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("host"))
+                .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.TAILSCALE_ONLY_MESSAGE));
+    }
+
     @Test
-    void IPv6_사설_주소_ULA도_저장할_수_있다() throws Exception {
+    void IPv6_Tailscale_주소도_저장할_수_있다() throws Exception {
         mockMvc.perform(put("/api/settings/llm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -156,7 +169,7 @@ class SettingApiControllerTest {
         mockMvc.perform(post("/api/settings/llm/test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 11434}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 11434}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
@@ -173,7 +186,7 @@ class SettingApiControllerTest {
         mockMvc.perform(post("/api/settings/llm/test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 11434}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 11434}
                                 """))
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.models").doesNotExist())
@@ -184,7 +197,7 @@ class SettingApiControllerTest {
         mockMvc.perform(post("/api/settings/llm/test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 11434}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 11434}
                                 """))
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.models").isEmpty())
@@ -194,18 +207,18 @@ class SettingApiControllerTest {
     @Test
     void 연결_테스트_실패는_ok_false와_원인_메시지를_반환한다() throws Exception {
         fakeLlmClient.willListModels(() -> {
-            throw new LlmException("로컬 LLM 서버(http://192.168.0.10:11434)에 연결할 수 없어요.");
+            throw new LlmException("로컬 LLM 서버(http://100.100.0.10:11434)에 연결할 수 없어요.");
         });
 
         mockMvc.perform(post("/api/settings/llm/test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 11434}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 11434}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.models").doesNotExist())
-                .andExpect(jsonPath("$.message").value("로컬 LLM 서버(http://192.168.0.10:11434)에 연결할 수 없어요."));
+                .andExpect(jsonPath("$.message").value("로컬 LLM 서버(http://100.100.0.10:11434)에 연결할 수 없어요."));
     }
 
     @Test
@@ -226,7 +239,7 @@ class SettingApiControllerTest {
         mockMvc.perform(put("/api/settings/llm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 8080, "model": "qwen2.5:7b"}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 8080, "model": "qwen2.5:7b"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("port"))
@@ -235,7 +248,7 @@ class SettingApiControllerTest {
         mockMvc.perform(post("/api/settings/llm/test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 22}
+                                {"provider": "OLLAMA", "host": "100.100.0.10", "port": 22}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("port"));
@@ -244,10 +257,10 @@ class SettingApiControllerTest {
     @Test
     void 연결_테스트를_너무_자주_하면_연결하지_않고_안내한다() throws Exception {
         for (int i = 1; i <= 10; i++) {
-            testConnection("192.168.0." + i).andExpect(jsonPath("$.ok").value(true));
+            testConnection("100.100.0." + i).andExpect(jsonPath("$.ok").value(true));
         }
 
-        testConnection("192.168.0.11")
+        testConnection("100.100.0.11")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.message").value(startsWith("LLM 서버 연결 시도가 너무 많아요.")));
@@ -256,14 +269,14 @@ class SettingApiControllerTest {
     @Test
     void 서버_주소를_너무_자주_바꾸면_429로_거부하고_같은_주소_저장은_허용한다() throws Exception {
         for (int i = 1; i <= 10; i++) {
-            saveSetting("192.168.0." + i).andExpect(status().isOk());
+            saveSetting("100.100.0." + i).andExpect(status().isOk());
         }
 
-        saveSetting("192.168.0.11")
+        saveSetting("100.100.0.11")
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.message").value(startsWith("LLM 서버 연결 시도가 너무 많아요.")));
-        saveSetting("192.168.0.10").andExpect(status().isOk());
+        saveSetting("100.100.0.10").andExpect(status().isOk());
     }
 
     private ResultActions testConnection(String host) throws Exception {
