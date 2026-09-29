@@ -1,5 +1,6 @@
 package io.dev.coding_test.dto.setting;
 
+import io.dev.coding_test.common.validation.annotation.LlmPort;
 import io.dev.coding_test.common.validation.annotation.LocalIp;
 import io.dev.coding_test.model.enums.LlmProvider;
 import jakarta.validation.constraints.Max;
@@ -37,6 +38,7 @@ public class LlmSettingRequest {
     @NotNull(message = "포트를 입력해주세요.")
     @Min(value = 1, message = "포트는 1~65535 사이로 입력해주세요.")
     @Max(value = 65535, message = "포트는 1~65535 사이로 입력해주세요.")
+    @LlmPort
     private Integer port;
 
     @NotBlank(message = "모델을 선택하거나 입력해주세요.")
