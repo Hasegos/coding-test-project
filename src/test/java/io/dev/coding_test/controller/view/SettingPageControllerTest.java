@@ -1,6 +1,7 @@
 package io.dev.coding_test.controller.view;
 
 import io.dev.coding_test.dto.setting.LlmSettingRequest;
+import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.support.TestLoginContext;
@@ -89,12 +90,23 @@ class SettingPageControllerTest {
     }
 
     @Test
+    void 설정_화면에_Tailscale_연결_가이드를_보여준다() throws Exception {
+        mockMvc.perform(get("/settings/llm"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("tailscaleOnly", true))
+                .andExpect(content().string(containsString("id=\"tailscale-guide\"")))
+                .andExpect(content().string(containsString("Tailscale 연결 가이드")))
+                .andExpect(content().string(containsString("href=\"#tailscale-guide\"")))
+                .andExpect(content().string(containsString("https://login.tailscale.com/admin/machines")));
+    }
+
+    @Test
     void 서버_주소를_너무_자주_바꾸면_에러와_함께_폼을_다시_보여준다() throws Exception {
         for (int i = 1; i <= 10; i++) {
-            mockMvc.perform(saveRequest("192.168.0." + i)).andExpect(status().is3xxRedirection());
+            mockMvc.perform(saveRequest("100.100.0." + i)).andExpect(status().is3xxRedirection());
         }
 
-        mockMvc.perform(saveRequest("192.168.0.11").param("apiKey", "typed-secret"))
+        mockMvc.perform(saveRequest("100.100.0.11").param("apiKey", "typed-secret"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("settings/llm"))
                 .andExpect(model().attributeHasFieldErrors("llmSettingRequest", "host"))
@@ -113,7 +125,7 @@ class SettingPageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("settings/llm"))
                 .andExpect(model().attributeHasFieldErrors("llmSettingRequest", "host"))
-                .andExpect(content().string(containsString("공인 IP는 사용할 수 없어요")))
+                .andExpect(content().string(containsString(LlmHostGuard.TAILSCALE_ONLY_MESSAGE)))
                 .andExpect(content().string(not(containsString("typed-secret"))));
     }
 
@@ -123,7 +135,7 @@ class SettingPageControllerTest {
                 .andExpect(content().string(containsString("LLM 서버가 아직 연결되지 않았어요")))
                 .andExpect(content().string(containsString("header__dot")));
 
-        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.10", 11434, "qwen2.5:7b", null, false));
+        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.OLLAMA, "100.100.0.10", 11434, "qwen2.5:7b", null, false));
 
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(not(containsString("LLM 서버가 아직 연결되지 않았어요"))))
