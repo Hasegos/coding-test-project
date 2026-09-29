@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class LlmServerBreakerTest {
 
-    private static final String SERVER = "100.66.180.73:1234";
+    private static final String SERVER = "100.100.0.99:1234";
 
     private final MutableClock clock = new MutableClock();
     /** 3번 연속 실패하면 5분 휴식, 실패할 때마다 두 배, 최대 30분 */
