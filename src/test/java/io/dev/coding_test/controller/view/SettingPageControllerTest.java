@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.containsString;
@@ -88,6 +89,20 @@ class SettingPageControllerTest {
     }
 
     @Test
+    void 서버_주소를_너무_자주_바꾸면_에러와_함께_폼을_다시_보여준다() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            mockMvc.perform(saveRequest("192.168.0." + i)).andExpect(status().is3xxRedirection());
+        }
+
+        mockMvc.perform(saveRequest("192.168.0.11").param("apiKey", "typed-secret"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("settings/llm"))
+                .andExpect(model().attributeHasFieldErrors("llmSettingRequest", "host"))
+                .andExpect(content().string(containsString("LLM 서버 연결 시도가 너무 많아요.")))
+                .andExpect(content().string(not(containsString("typed-secret"))));
+    }
+
+    @Test
     void 로컬_IP가_아니면_에러와_함께_폼을_다시_보여준다() throws Exception {
         mockMvc.perform(post("/settings/llm")
                         .param("provider", "OLLAMA")
@@ -113,5 +128,13 @@ class SettingPageControllerTest {
         mockMvc.perform(get("/memos"))
                 .andExpect(content().string(not(containsString("LLM 서버가 아직 연결되지 않았어요"))))
                 .andExpect(content().string(not(containsString("header__dot\""))));
+    }
+
+    private static MockHttpServletRequestBuilder saveRequest(String host) {
+        return post("/settings/llm")
+                .param("provider", "OLLAMA")
+                .param("host", host)
+                .param("port", "11434")
+                .param("model", "qwen2.5:7b");
     }
 }
