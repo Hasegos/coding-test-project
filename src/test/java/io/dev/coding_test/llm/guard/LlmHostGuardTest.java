@@ -175,4 +175,11 @@ class LlmHostGuardTest {
     void Tailscale_전용이어도_형식_오류와_차단_대역은_원래_사유로_안내한다(String host, String messageStart) {
         assertThat(tailscaleOnly.rejectReason(host)).hasValueSatisfying(reason -> assertThat(reason).startsWith(messageStart));
     }
+
+    @ParameterizedTest
+    @CsvSource({"100.66.180.73, true", "100.64.0.0, true", "100.128.0.1, false", "fd7a:115c:a1e0::1, true",
+            "fd00::1, false", "192.168.0.10, false", "not-an-ip, false"})
+    void Tailscale_주소인지_판단한다(String host, boolean expected) {
+        assertThat(LlmHostGuard.isTailscaleAddress(host)).isEqualTo(expected);
+    }
 }
