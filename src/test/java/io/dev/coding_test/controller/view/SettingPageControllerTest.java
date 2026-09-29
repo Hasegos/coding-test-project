@@ -115,6 +115,22 @@ class SettingPageControllerTest {
     }
 
     @Test
+    void 다른_회원이_등록한_서버는_API_Key_칸에_안내를_보여준다() throws Exception {
+        Long otherId = testUsers.create("owner").getUserId();
+        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.100.0.50", 1234, "model", "token", false));
+
+        mockMvc.perform(post("/settings/llm")
+                        .param("provider", "LMSTUDIO")
+                        .param("host", "100.100.0.50")
+                        .param("port", "1234")
+                        .param("model", "model"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("settings/llm"))
+                .andExpect(model().attributeHasFieldErrors("llmSettingRequest", "apiKey"))
+                .andExpect(content().string(containsString(LlmSettingService.SHARED_KEY_REQUIRED_MESSAGE)));
+    }
+
+    @Test
     void 로컬_IP가_아니면_에러와_함께_폼을_다시_보여준다() throws Exception {
         mockMvc.perform(post("/settings/llm")
                         .param("provider", "OLLAMA")
