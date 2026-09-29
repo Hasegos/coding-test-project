@@ -1,10 +1,12 @@
 package io.dev.coding_test.service;
 
+import io.dev.coding_test.common.exception.InvalidFieldException;
 import io.dev.coding_test.dto.setting.LlmConnectionTestRequest;
 import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
 import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.llm.dto.LlmConnection;
+import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.repository.LlmSettingRepository;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
@@ -138,6 +141,94 @@ class LlmSettingServiceTest {
         llmSettingService.testConnection(userId, new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.100.0.10", 1234, ""));
 
         assertThat(fakeLlmClientFactory.lastConnection().apiKey()).isEqualTo("secret");
+    }
+
+    // ===================== 다른 회원이 등록한 LLM 서버 =====================
+
+    private static final String SHARED_HOST = "100.100.0.50";
+    private static final String OWNER_TOKEN = "owner-token";
+
+    /** 다른 회원이 먼저 등록한 LLM 서버 */
+    private void registerByOther() {
+        Long otherId = testUsers.create("owner").getUserId();
+        llmSettingService.save(otherId, request(LlmProvider.LMSTUDIO, SHARED_HOST, 1234, "model", OWNER_TOKEN, false));
+    }
+
+    /** 인증을 켠 LLM 서버 — 토큰이 없거나 틀리면 401 */
+    private void serverRequiresToken() {
+        fakeLlmClient.willListModels(() -> {
+            if (OWNER_TOKEN.equals(fakeLlmClientFactory.lastConnection().apiKey())) {
+                return Optional.of(List.of("model"));
+            }
+            throw new LlmAuthException("LLM 서버 인증에 실패했어요. API Key를 확인해주세요.");
+        });
+    }
+
+    @Test
+    void 다른_회원이_등록한_서버는_API_Key_없이_저장할_수_없다() {
+        registerByOther();
+
+        assertThatThrownBy(() -> llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, SHARED_HOST, 1234, "model", null, false)))
+                .isInstanceOf(InvalidFieldException.class)
+                .hasMessage(LlmSettingService.SHARED_KEY_REQUIRED_MESSAGE)
+                .extracting("field").isEqualTo("apiKey");
+    }
+
+    @Test
+    void 다른_회원이_등록한_서버는_그_서버의_토큰이_맞아야_저장된다() {
+        registerByOther();
+        serverRequiresToken();
+
+        assertThatThrownBy(() -> llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, SHARED_HOST, 1234, "model", "guess", false)))
+                .isInstanceOf(InvalidFieldException.class)
+                .hasMessage(LlmSettingService.SHARED_WRONG_KEY_MESSAGE);
+
+        LlmSettingResponse saved = llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, SHARED_HOST, 1234, "model", OWNER_TOKEN, false));
+        assertThat(saved.host()).isEqualTo(SHARED_HOST);
+    }
+
+    @Test
+    void 인증이_꺼진_서버는_아무_토큰이나_통과하므로_다른_회원이_등록할_수_없다() {
+        registerByOther();
+        fakeLlmClient.willListModels(() -> Optional.of(List.of("model")));
+
+        assertThatThrownBy(() -> llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, SHARED_HOST, 1234, "model", "anything", false)))
+                .isInstanceOf(InvalidFieldException.class)
+                .hasMessage(LlmSettingService.SHARED_NO_AUTH_MESSAGE);
+    }
+
+    @Test
+    void 다른_회원이_등록한_서버에_연결할_수_없으면_토큰을_확인할_수_없어_거부한다() {
+        registerByOther();
+        fakeLlmClient.willListModels(() -> {
+            throw new LlmException("연결할 수 없어요.");
+        });
+
+        assertThatThrownBy(() -> llmSettingService.save(userId, request(LlmProvider.LMSTUDIO, SHARED_HOST, 1234, "model", OWNER_TOKEN, false)))
+                .isInstanceOf(InvalidFieldException.class)
+                .hasMessage(LlmSettingService.SHARED_UNREACHABLE_MESSAGE)
+                .extracting("field").isEqualTo("host");
+    }
+
+    @Test
+    void IPv6는_표기가_달라도_같은_서버로_본다() {
+        Long otherId = testUsers.create("owner").getUserId();
+        llmSettingService.save(otherId, request(LlmProvider.LMSTUDIO, "fd7a:115c:a1e0::5", 1234, "model", OWNER_TOKEN, false));
+
+        assertThatThrownBy(() -> llmSettingService.save(userId,
+                request(LlmProvider.LMSTUDIO, "fd7a:115c:a1e0:0:0:0:0:5", 1234, "model", null, false)))
+                .isInstanceOf(InvalidFieldException.class);
+    }
+
+    @Test
+    void 포트가_다르거나_이미_내가_등록한_주소면_토큰을_확인하지_않는다() {
+        registerByOther();
+        fakeLlmClient.willListModels(() -> {
+            throw new AssertionError("토큰 확인 요청을 보내면 안 됨");
+        });
+
+        llmSettingService.save(userId, request(LlmProvider.OLLAMA, SHARED_HOST, 11434, "model", null, false));
+        llmSettingService.save(userId, request(LlmProvider.OLLAMA, SHARED_HOST, 11434, "other-model", null, false));
     }
 
     private static LlmSettingRequest request(LlmProvider provider, String host, int port, String model,
