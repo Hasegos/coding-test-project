@@ -1,5 +1,6 @@
 package io.dev.coding_test.controller.view;
 
+import io.dev.coding_test.common.exception.TooManyRequestsException;
 import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.model.enums.LlmProvider;
@@ -50,7 +51,7 @@ public class SettingPageController {
 
     /**
      * 접속 설정을 저장하고, 요약에 실패했던 메모를 다시 요약 요청한다(PRG).
-     * 검증 실패 시 입력값을 유지한 채 설정 화면을 다시 렌더링한다.
+     * 검증 실패나 주소 변경 횟수 초과 시 입력값을 유지한 채 설정 화면을 다시 렌더링한다.
      *
      * @param userId             로그인한 회원 ID
      * @param request            접속 설정 저장 요청
@@ -70,7 +71,14 @@ public class SettingPageController {
             addFormAttributes(userId, model);
             return "settings/llm";
         }
-        llmSettingService.save(userId, request);
+        try {
+            llmSettingService.save(userId, request);
+        } catch (TooManyRequestsException e) {
+            bindingResult.rejectValue("host", "tooManyRequests", e.getMessage());
+            request.setApiKey(null);
+            addFormAttributes(userId, model);
+            return "settings/llm";
+        }
         int retried = memoSummaryService.retryFailed(userId);
         redirectAttributes.addFlashAttribute("toast", retried > 0
                 ? "LLM 설정을 저장했어요. 실패한 요약 " + retried + "건을 다시 요청했어요."
