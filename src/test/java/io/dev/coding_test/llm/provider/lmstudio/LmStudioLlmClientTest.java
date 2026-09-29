@@ -29,7 +29,7 @@ class LmStudioLlmClientTest {
 
     private static final String BASE_URL = "http://lmstudio.test";
 
-    private final LlmProperties properties = new LlmProperties(0.2, null, null, null, null, 1, 10);
+    private final LlmProperties properties = new LlmProperties(0.2, null, null, null, null, 1, 10, 8);
     private final LlmConnection connection =
             new LlmConnection(LlmProvider.LMSTUDIO, "192.168.0.10", 1234, "qwen2.5-7b-instruct", null);
 
