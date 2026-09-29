@@ -1,5 +1,6 @@
 package io.dev.coding_test.controller.view;
 
+import io.dev.coding_test.common.exception.InvalidFieldException;
 import io.dev.coding_test.common.exception.TooManyRequestsException;
 import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.dto.setting.LlmSettingResponse;
@@ -55,7 +56,7 @@ public class SettingPageController {
 
     /**
      * 접속 설정을 저장하고, 요약에 실패했던 메모를 다시 요약 요청한다(PRG).
-     * 검증 실패나 주소 변경 횟수 초과 시 입력값을 유지한 채 설정 화면을 다시 렌더링한다.
+     * 검증 실패, 주소 변경 횟수 초과, 다른 회원이 등록한 서버의 토큰 확인 실패 시 입력값을 유지한 채 설정 화면을 다시 렌더링한다.
      *
      * @param userId             로그인한 회원 ID
      * @param request            접속 설정 저장 요청
@@ -78,10 +79,9 @@ public class SettingPageController {
         try {
             llmSettingService.save(userId, request);
         } catch (TooManyRequestsException e) {
-            bindingResult.rejectValue("host", "tooManyRequests", e.getMessage());
-            request.setApiKey(null);
-            addFormAttributes(userId, model);
-            return "settings/llm";
+            return rejectForm("host", e.getMessage(), userId, request, bindingResult, model);
+        } catch (InvalidFieldException e) {
+            return rejectForm(e.getField(), e.getMessage(), userId, request, bindingResult, model);
         }
         int retried = memoSummaryService.retryFailed(userId);
         redirectAttributes.addFlashAttribute("toast", retried > 0
@@ -90,7 +90,18 @@ public class SettingPageController {
         return "redirect:/settings/llm";
     }
 
-    private void addFormAttributes(Long userId, Model model) {
+    /**
+     * 저장 단계에서 거부된 입력칸에 메시지를 붙여 설정 화면을 다시 보여준다. (입력한 API Key는 되돌려주지 않음)
+     */
+    private String rejectForm(String field, String message, Long userId, LlmSettingRequest request,
+                              BindingResult bindingResult, Model model) {
+        bindingResult.rejectValue(field, "rejected", message);
+        request.setApiKey(null);
+        addFormAttributes(userId, model);
+        return "settings/llm";
+    }
+
+        private void addFormAttributes(Long userId, Model model) {
         model.addAttribute("providers", LlmProvider.values());
         model.addAttribute("tailscaleOnly", llmHostGuard.isTailscaleOnly());
         model.addAttribute("shareEmail", llmGuardProperties.shareEmail());

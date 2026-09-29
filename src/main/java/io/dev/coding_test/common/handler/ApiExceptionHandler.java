@@ -1,5 +1,6 @@
 package io.dev.coding_test.common.handler;
 
+import io.dev.coding_test.common.exception.InvalidFieldException;
 import io.dev.coding_test.common.exception.NotFoundException;
 import io.dev.coding_test.common.exception.TooManyRequestsException;
 import io.dev.coding_test.dto.common.ErrorResponse;
@@ -43,6 +44,20 @@ public class ApiExceptionHandler {
         log.warn("[404] API NotFoundException 발생: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(404, e.getMessage()));
+    }
+
+    /**
+     * 서비스 규칙에 맞지 않는 입력값을 처리한다. (400, 필드 검증 실패와 같은 형식)
+     *
+     * @param e 발생한 InvalidFieldException
+     * @return 필드 오류를 담은 400 에러 응답
+     */
+    @ExceptionHandler(InvalidFieldException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidField(InvalidFieldException e) {
+        log.warn("[400] 입력값 거부 - {}: {}", e.getField(), e.getMessage());
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse(400, "입력값을 확인해주세요.",
+                        List.of(new ErrorResponse.FieldError(e.getField(), e.getMessage()))));
     }
 
     /**

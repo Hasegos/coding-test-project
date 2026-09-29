@@ -3,6 +3,7 @@ package io.dev.coding_test.llm.provider.ollama;
 import io.dev.coding_test.llm.config.LlmProperties;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.model.enums.LlmProvider;
@@ -156,6 +157,17 @@ class OllamaLlmClientTest {
         assertThatThrownBy(() -> client.listModels())
                 .isInstanceOf(LlmException.class)
                 .hasMessage(message);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"401, true", "403, true", "400, false", "500, false"})
+    void 인증_실패_응답만_LlmAuthException으로_구분한다(int status, boolean authFailure) {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        assertThatThrownBy(() -> client.listModels())
+                .isInstanceOf(LlmException.class)
+                .matches(e -> (e instanceof LlmAuthException) == authFailure);
     }
 
     @Test

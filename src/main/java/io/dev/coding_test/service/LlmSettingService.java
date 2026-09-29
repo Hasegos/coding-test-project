@@ -1,6 +1,8 @@
 package io.dev.coding_test.service;
 
+import io.dev.coding_test.common.exception.InvalidFieldException;
 import io.dev.coding_test.common.exception.TooManyRequestsException;
+import io.dev.coding_test.common.util.IpAddressUtil;
 import io.dev.coding_test.common.util.TimeUtil;
 import io.dev.coding_test.dto.setting.LlmConnectionTestRequest;
 import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
@@ -8,9 +10,11 @@ import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.dto.setting.LlmSettingResponse;
 import io.dev.coding_test.llm.client.LlmClientFactory;
 import io.dev.coding_test.llm.dto.LlmConnection;
+import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.guard.LlmProbeLimiter;
 import io.dev.coding_test.model.LlmSetting;
+import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.repository.LlmSettingRepository;
 import io.dev.coding_test.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.InetAddress;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +40,16 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class LlmSettingService {
+
+    public static final String SHARED_KEY_REQUIRED_MESSAGE =
+            "다른 회원이 이미 등록한 LLM 서버예요. 본인 서버라면 LLM 서버의 인증 토큰을 API Key에 입력해주세요.";
+    public static final String SHARED_NO_AUTH_MESSAGE =
+            "다른 회원이 이미 등록한 LLM 서버인데 인증이 꺼져 있어요. LLM 서버에서 인증 토큰을 켠 뒤 그 토큰을 입력해주세요. "
+                    + "(Ollama는 자체 인증이 없어 여러 회원이 함께 쓸 수 없어요)";
+    public static final String SHARED_WRONG_KEY_MESSAGE =
+            "API Key가 올바르지 않아요. 다른 회원이 이미 등록한 LLM 서버는 그 서버의 인증 토큰으로만 등록할 수 있어요.";
+    public static final String SHARED_UNREACHABLE_MESSAGE =
+            "다른 회원이 이미 등록한 LLM 서버라 인증 토큰을 확인해야 하는데, 서버에 연결하지 못했어요. LLM 서버를 켠 뒤 다시 저장해주세요.";
 
     private final LlmSettingRepository llmSettingRepository;
     private final UserRepository userRepository;
@@ -95,8 +110,14 @@ public class LlmSettingService {
      *
      * @param userId  회원 ID
      * @param request 접속 설정 저장 요청 (검증 완료)
+     * <p>
+     * 다른 회원이 이미 등록한 LLM 서버(IP·포트)로 바꾸려면 그 서버의 인증 토큰을 알아야 한다. ({@link #verifySharedServer})
+     * 서버 IP만 알면 남의 LLM(GPU)을 쓸 수 있는 것을 막는다.
+     * </p>
+     *
      * @return 저장된 설정
      * @throws TooManyRequestsException 런타임·주소·포트를 짧은 시간에 너무 자주 바꾼 경우
+     * @throws InvalidFieldException    다른 회원이 등록한 LLM 서버인데 인증 토큰을 확인하지 못한 경우
      */
     @Transactional
     public LlmSettingResponse save(Long userId, LlmSettingRequest request) {
@@ -109,6 +130,11 @@ public class LlmSettingService {
             llmProbeLimiter.tryAcquire(userId).ifPresent(retryAfter -> {
                 throw new TooManyRequestsException(LlmProbeLimiter.message(retryAfter));
             });
+            if (isRegisteredByOthers(userId, request.getHost(), request.getPort())) {
+                String apiKey = Boolean.TRUE.equals(request.getClearApiKey()) ? null
+                        : hasText(request.getApiKey()) ? request.getApiKey().strip() : setting.getApiKey();
+                verifySharedServer(request.getProvider(), request.getHost().strip(), request.getPort(), apiKey);
+            }
         }
 
         setting.setProvider(request.getProvider());
@@ -158,6 +184,48 @@ public class LlmSettingService {
         } catch (LlmException e) {
             return LlmConnectionTestResponse.failure(elapsedMillis(start), e.getMessage());
         }
+    }
+
+    /**
+     * 다른 회원이 같은 LLM 서버(IP·포트)를 이미 등록했는지 확인한다. IPv6는 표기가 달라도 같은 주소로 본다.
+     */
+    private boolean isRegisteredByOthers(Long userId, String host, int port) {
+        Optional<InetAddress> address = IpAddressUtil.parseLiteral(host.strip());
+        if (address.isEmpty()) {
+            return false;
+        }
+        return llmSettingRepository.findByPortAndUserIdNot(port, userId).stream()
+                .anyMatch(other -> IpAddressUtil.parseLiteral(other.getHost()).equals(address));
+    }
+
+    /**
+     * 다른 회원이 이미 등록한 LLM 서버를 등록할 때, 그 서버의 인증 토큰을 아는지 확인한다.
+     * <ol>
+     *     <li>토큰 없이 요청하면 서버가 인증을 요구해야 한다. (인증이 꺼진 서버는 아무 토큰이나 통과하므로 확인할 수 없다)</li>
+     *     <li>입력한 토큰으로 요청하면 성공해야 한다.</li>
+     * </ol>
+     * 드문 경우라 저장 트랜잭션 안에서 모델 목록 조회(최대 {@code llm.models-timeout})를 두 번 한다.
+     */
+    private void verifySharedServer(LlmProvider provider, String host, int port, String apiKey) {
+        if (!hasText(apiKey)) {
+            throw new InvalidFieldException("apiKey", SHARED_KEY_REQUIRED_MESSAGE);
+        }
+        try {
+            llmClientFactory.create(new LlmConnection(provider, host, port, "", null)).listModels();
+            throw new InvalidFieldException("apiKey", SHARED_NO_AUTH_MESSAGE);
+        } catch (LlmAuthException expected) {
+            // 인증을 요구하는 서버 — 입력한 토큰을 확인한다.
+        } catch (LlmException e) {
+            throw new InvalidFieldException("host", SHARED_UNREACHABLE_MESSAGE);
+        }
+        try {
+            llmClientFactory.create(new LlmConnection(provider, host, port, "", apiKey)).listModels();
+        } catch (LlmAuthException e) {
+            throw new InvalidFieldException("apiKey", SHARED_WRONG_KEY_MESSAGE);
+        } catch (LlmException e) {
+            throw new InvalidFieldException("host", SHARED_UNREACHABLE_MESSAGE);
+        }
+        log.info("다른 회원이 등록한 LLM 서버 등록 - 인증 토큰 확인 완료, host: {}, port: {}", host, port);
     }
 
     /**

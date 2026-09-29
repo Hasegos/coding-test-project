@@ -179,6 +179,18 @@ public class LlmHostGuard {
         return tailscaleOnly;
     }
 
+    /**
+     * Tailscale 대역(100.64.0.0/10, fd7a:115c:a1e0::/48)의 IP인지 확인한다.
+     *
+     * @param host IP 문자열
+     * @return Tailscale 주소면 {@code true}
+     */
+    public static boolean isTailscaleAddress(String host) {
+        return IpAddressUtil.parseLiteral(host == null ? "" : host.strip())
+                .map(address -> TAILSCALE_RANGES.stream().anyMatch(range -> range.contains(address)))
+                .orElse(false);
+    }
+
     /** Tailscale만 허용할 때는 어떤 주소를 넣었든 Tailscale 연결 안내 하나로 답한다. */
     private String tailscaleOr(String message) {
         return tailscaleOnly ? TAILSCALE_ONLY_MESSAGE : message;

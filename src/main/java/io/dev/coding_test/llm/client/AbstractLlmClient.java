@@ -3,7 +3,9 @@ package io.dev.coding_test.llm.client;
 import io.dev.coding_test.llm.config.LlmProperties;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.prompt.SummaryPrompt;
 import lombok.extern.slf4j.Slf4j;
@@ -170,6 +172,9 @@ public abstract class AbstractLlmClient implements LlmClient {
     private <T> T readBody(ClientHttpResponse response, int status, Class<T> type) throws IOException {
         if (status < 200 || status >= 300) {
             log.warn("LLM 서버 오류 응답 - baseUrl: {}, status: {}", connection.baseUrl(), status);
+            if (status == 401 || status == 403) {
+                throw new LlmAuthException(statusMessage(status));
+            }
             throw new LlmException(statusMessage(status));
         }
         byte[] bytes = readLimited(response.getBody(), properties.maxResponseSize().toBytes());
@@ -227,8 +232,7 @@ public abstract class AbstractLlmClient implements LlmClient {
             if (hasCause(e, HttpConnectTimeoutException.class) || hasCause(e, ConnectException.class)
                     || hasCause(e, NoRouteToHostException.class)) {
                 log.warn("LLM 서버 연결 실패 - baseUrl: {}, {}", baseUrl, e.getMostSpecificCause().toString());
-                return new LlmException("로컬 LLM 서버(" + baseUrl + ")에 연결할 수 없어요. "
-                        + "서버 실행 여부와 LLM 설정 화면의 IP·포트를 확인해주세요.", e);
+                return new LlmException(connectFailureMessage(connection), e);
             }
             if (hasCause(e, HttpTimeoutException.class) || hasCause(e, SocketTimeoutException.class)
                     || elapsed.compareTo(timeout) >= 0) {
@@ -239,6 +243,18 @@ public abstract class AbstractLlmClient implements LlmClient {
         }
         log.warn("LLM 호출 실패 - baseUrl: {}", baseUrl, e);
         return new LlmException("LLM 서버와 통신하지 못했어요. 서버 상태와 IP·포트를 확인해주세요.", e);
+    }
+
+    /**
+     * 연결 실패 안내. Tailscale 주소면 공유·수락 여부처럼 Tailscale 연결에서 흔히 빠뜨리는 항목을 함께 안내한다.
+     */
+    static String connectFailureMessage(LlmConnection connection) {
+        String prefix = "로컬 LLM 서버(" + connection.baseUrl() + ")에 연결할 수 없어요. ";
+        if (LlmHostGuard.isTailscaleAddress(connection.host())) {
+            return prefix + "LLM PC의 Tailscale과 LLM 서버가 켜져 있는지, "
+                    + "LLM PC를 운영자에게 공유했고 운영자가 수락했는지 확인해주세요.";
+        }
+        return prefix + "서버 실행 여부와 LLM 설정 화면의 IP·포트를 확인해주세요.";
     }
 
     private static Duration elapsed(long startNanos) {
