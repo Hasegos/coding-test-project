@@ -242,7 +242,7 @@ class MemoSummaryServiceTest {
 
         LlmConnection connection = fakeLlmClientFactory.lastConnection();
         assertThat(connection.provider()).isEqualTo(LlmProvider.LMSTUDIO);
-        assertThat(connection.baseUrl()).isEqualTo("http://100.66.180.73:1234");
+        assertThat(connection.baseUrl()).isEqualTo("http://100.100.0.99:1234");
         assertThat(connection.model()).isEqualTo("qwen2.5-7b-instruct");
     }
 
@@ -403,7 +403,7 @@ class MemoSummaryServiceTest {
     }
 
     private void saveSetting() {
-        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
+        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.100.0.99", 1234,
                 "qwen2.5-7b-instruct", null, false));
     }
 }

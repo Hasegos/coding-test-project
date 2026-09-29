@@ -9,9 +9,9 @@ class LlmConnectionTest {
 
     @Test
     void IP와_포트로_기본_주소를_만든다() {
-        LlmConnection connection = new LlmConnection(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, "model", null);
+        LlmConnection connection = new LlmConnection(LlmProvider.LMSTUDIO, "100.100.0.99", 1234, "model", null);
 
-        assertThat(connection.baseUrl()).isEqualTo("http://100.66.180.73:1234");
+        assertThat(connection.baseUrl()).isEqualTo("http://100.100.0.99:1234");
         assertThat(connection.hasApiKey()).isFalse();
     }
 
