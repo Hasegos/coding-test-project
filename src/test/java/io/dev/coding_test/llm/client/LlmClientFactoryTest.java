@@ -180,8 +180,8 @@ class LlmClientFactoryTest {
 
     @Test
     void Tailscale_주소에_연결할_수_없으면_공유_수락_여부를_함께_안내한다() {
-        assertThat(AbstractLlmClient.connectFailureMessage(connection(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, null)))
-                .isEqualTo("로컬 LLM 서버(http://100.66.180.73:1234)에 연결할 수 없어요. LLM PC의 Tailscale과 LLM 서버가 켜져 있는지, "
+        assertThat(AbstractLlmClient.connectFailureMessage(connection(LlmProvider.LMSTUDIO, "100.100.0.99", 1234, null)))
+                .isEqualTo("로컬 LLM 서버(http://100.100.0.99:1234)에 연결할 수 없어요. LLM PC의 Tailscale과 LLM 서버가 켜져 있는지, "
                         + "LLM PC를 운영자에게 공유했고 운영자가 수락했는지 확인해주세요.");
         assertThat(AbstractLlmClient.connectFailureMessage(connection(LlmProvider.OLLAMA, "fd7a:115c:a1e0::1", 11434, null)))
                 .contains("운영자에게 공유");

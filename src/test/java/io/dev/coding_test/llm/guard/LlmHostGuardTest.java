@@ -18,7 +18,7 @@ class LlmHostGuardTest {
     private final LlmHostGuard guard = new LlmHostGuard("10.0.0.5");
 
     @ParameterizedTest
-    @ValueSource(strings = {"192.168.0.10", "10.1.2.3", "172.20.0.1", "100.66.180.73", "fd7a:115c:a1e0::1", " 192.168.0.10 "})
+    @ValueSource(strings = {"192.168.0.10", "10.1.2.3", "172.20.0.1", "100.100.0.99", "fd7a:115c:a1e0::1", " 192.168.0.10 "})
     void 사설망과_Tailscale_주소는_허용한다(String host) {
         assertThat(guard.rejectReason(host)).isEmpty();
         assertThatCode(() -> guard.check(host, 11434)).doesNotThrowAnyException();
@@ -49,10 +49,10 @@ class LlmHostGuardTest {
             "010.0.0.1              | INVALID",
             "1::2::3                | INVALID",
             "fe80::1%eth0           | INVALID",
-            "http://100.66.180.73   | URL",
-            "http://100.66.180.73:1234 | URL",
+            "http://100.100.0.99   | URL",
+            "http://100.100.0.99:1234 | URL",
             "https://192.168.0.10/  | URL",
-            "100.66.180.73:1234     | URL",
+            "100.100.0.99:1234     | URL",
             "192.168.0.10/          | URL",
             "[fd7a:115c:a1e0::1]    | URL",
             "http://localhost:1234  | URL",
@@ -88,7 +88,7 @@ class LlmHostGuardTest {
 
     @Test
     void 주소_범주를_알려준다() {
-        assertThat(guard.categoryOf("100.66.180.73")).hasValue(IpCategory.PRIVATE);
+        assertThat(guard.categoryOf("100.100.0.99")).hasValue(IpCategory.PRIVATE);
         assertThat(guard.categoryOf("evil.example.com")).isEmpty();
     }
 
@@ -98,7 +98,7 @@ class LlmHostGuardTest {
             new LlmGuardProperties(List.of("100.64.0.0/10", "192.168.0.10"), List.of(1234, 11434), 0, null, null));
 
     @ParameterizedTest
-    @ValueSource(strings = {"100.66.180.73", "100.127.255.254", "192.168.0.10"})
+    @ValueSource(strings = {"100.100.0.99", "100.127.255.254", "192.168.0.10"})
     void 허용_대역을_설정하면_그_대역의_주소만_허용한다(String host) {
         assertThat(restricted.rejectReason(host)).isEmpty();
     }
@@ -120,13 +120,13 @@ class LlmHostGuardTest {
     @ValueSource(ints = {80, 22, 5432, 8080, 443})
     void 허용_포트가_아니면_허용_포트를_안내하며_거부한다(int port) {
         assertThat(restricted.rejectPortReason(port)).contains(LlmHostGuard.PORT_MESSAGE_PREFIX + "1234, 11434");
-        assertThatThrownBy(() -> restricted.check("100.66.180.73", port)).isInstanceOf(LlmException.class)
+        assertThatThrownBy(() -> restricted.check("100.100.0.99", port)).isInstanceOf(LlmException.class)
                 .hasMessage(LlmHostGuard.PORT_MESSAGE_PREFIX + "1234, 11434");
     }
 
     @Test
     void 허용_포트와_대역_안의_주소는_통과한다() {
-        assertThatCode(() -> restricted.check("100.66.180.73", 1234)).doesNotThrowAnyException();
+        assertThatCode(() -> restricted.check("100.100.0.99", 1234)).doesNotThrowAnyException();
         assertThat(restricted.rejectPortReason(11434)).isEmpty();
     }
 
@@ -155,7 +155,7 @@ class LlmHostGuardTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"100.66.180.73", "100.64.0.1", "fd7a:115c:a1e0::1"})
+    @ValueSource(strings = {"100.100.0.99", "100.64.0.1", "fd7a:115c:a1e0::1"})
     void Tailscale_전용이면_Tailscale_주소를_허용한다(String host) {
         assertThat(tailscaleOnly.rejectReason(host)).isEmpty();
     }
@@ -177,7 +177,7 @@ class LlmHostGuardTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"100.66.180.73, true", "100.64.0.0, true", "100.128.0.1, false", "fd7a:115c:a1e0::1, true",
+    @CsvSource({"100.100.0.99, true", "100.64.0.0, true", "100.128.0.1, false", "fd7a:115c:a1e0::1, true",
             "fd00::1, false", "192.168.0.10, false", "not-an-ip, false"})
     void Tailscale_주소인지_판단한다(String host, boolean expected) {
         assertThat(LlmHostGuard.isTailscaleAddress(host)).isEqualTo(expected);

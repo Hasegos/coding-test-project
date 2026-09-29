@@ -41,7 +41,7 @@
                     <label class="field__label" for="host">서버 IP</label>
                     <input class="field__input" id="host" type="text" th:field="*{host}"
                            th:classappend="${#fields.hasErrors('host')} ? 'field__input--error'"
-                           th:placeholder="${tailscaleOnly} ? '예) 100.66.180.73 (LLM PC의 Tailscale IP)' : '예) 192.168.0.10 또는 100.66.180.73'"
+                           th:placeholder="${tailscaleOnly} ? '예) 100.x.x.x (LLM PC의 Tailscale IP)' : '예) 192.168.0.10 또는 100.x.x.x'"
                            maxlength="45" inputmode="text"
                            autocomplete="off" spellcheck="false" autocapitalize="off" required>
                     <p class="field__error" th:if="${#fields.hasErrors('host')}" th:errors="*{host}"></p>

@@ -25,7 +25,7 @@ class IpAddressUtilTest {
             "::ffff:169.254.169.254, BLOCKED", "2002:a9fe:a9fe::, BLOCKED",
             // 사설망 · Tailscale(CGNAT) · IPv6 ULA
             "10.0.0.1, PRIVATE", "10.255.255.255, PRIVATE", "172.16.0.1, PRIVATE", "172.31.255.255, PRIVATE",
-            "192.168.0.10, PRIVATE", "100.64.0.1, PRIVATE", "100.66.180.73, PRIVATE", "100.127.255.255, PRIVATE",
+            "192.168.0.10, PRIVATE", "100.64.0.1, PRIVATE", "100.100.0.99, PRIVATE", "100.127.255.255, PRIVATE",
             "fd7a:115c:a1e0::1, PRIVATE", "fc00::1, PRIVATE", "::ffff:192.168.0.10, PRIVATE", "2002:c0a8:000a::, PRIVATE",
             // 공인 IP (경계값 포함)
             "8.8.8.8, PUBLIC", "172.15.255.255, PUBLIC", "172.32.0.1, PUBLIC", "100.63.255.255, PUBLIC",

@@ -76,12 +76,12 @@ class LlmSettingServiceTest {
     void 접속_설정을_단일_행으로_저장하고_다시_저장하면_덮어쓴다() {
         llmSettingService.save(userId, request(LlmProvider.OLLAMA, " 100.100.0.10 ", 11434, " qwen2.5:7b ", null, false));
         LlmSettingResponse saved = llmSettingService.save(userId, 
-                request(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, "qwen2.5-vl-7b-instruct", null, false));
+                request(LlmProvider.LMSTUDIO, "100.100.0.99", 1234, "qwen2.5-vl-7b-instruct", null, false));
 
         assertThat(llmSettingRepository.count()).isEqualTo(1);
         assertThat(llmSettingRepository.findById(userId)).isPresent();
         assertThat(saved.provider()).isEqualTo(LlmProvider.LMSTUDIO);
-        assertThat(saved.host()).isEqualTo("100.66.180.73");
+        assertThat(saved.host()).isEqualTo("100.100.0.99");
         assertThat(saved.model()).isEqualTo("qwen2.5-vl-7b-instruct");
         assertThat(llmSettingService.isConfigured(userId)).isTrue();
     }
@@ -112,12 +112,12 @@ class LlmSettingServiceTest {
         fakeLlmClient.willListModels(() -> Optional.of(List.of("qwen2.5-vl-7b-instruct")));
 
         LlmConnectionTestResponse result = llmSettingService.testConnection(userId, 
-                new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, null));
+                new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.100.0.99", 1234, null));
 
         assertThat(result.ok()).isTrue();
         assertThat(result.models()).containsExactly("qwen2.5-vl-7b-instruct");
         assertThat(result.message()).isNull();
-        assertThat(fakeLlmClientFactory.lastConnection().baseUrl()).isEqualTo("http://100.66.180.73:1234");
+        assertThat(fakeLlmClientFactory.lastConnection().baseUrl()).isEqualTo("http://100.100.0.99:1234");
     }
 
     @Test
@@ -127,7 +127,7 @@ class LlmSettingServiceTest {
         });
 
         LlmConnectionTestResponse result = llmSettingService.testConnection(userId, 
-                new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, null));
+                new LlmConnectionTestRequest(LlmProvider.LMSTUDIO, "100.100.0.99", 1234, null));
 
         assertThat(result.ok()).isFalse();
         assertThat(result.models()).isNull();

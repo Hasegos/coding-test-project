@@ -79,12 +79,12 @@ class SettingApiControllerTest {
         mockMvc.perform(put("/api/settings/llm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "LMSTUDIO", "host": "100.66.180.73", "port": 1234,
+                                {"provider": "LMSTUDIO", "host": "100.100.0.99", "port": 1234,
                                  "model": "qwen2.5-vl-7b-instruct", "apiKey": "secret"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.provider").value("LMSTUDIO"))
-                .andExpect(jsonPath("$.host").value("100.66.180.73"))
+                .andExpect(jsonPath("$.host").value("100.100.0.99"))
                 .andExpect(jsonPath("$.hasApiKey").value(true))
                 .andExpect(jsonPath("$.apiKey").doesNotExist());
 
@@ -138,7 +138,7 @@ class SettingApiControllerTest {
         mockMvc.perform(put("/api/settings/llm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "LMSTUDIO", "host": "http://100.66.180.73", "port": 1234, "model": "qwen2.5:7b"}
+                                {"provider": "LMSTUDIO", "host": "http://100.100.0.99", "port": 1234, "model": "qwen2.5:7b"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.URL_MESSAGE));
