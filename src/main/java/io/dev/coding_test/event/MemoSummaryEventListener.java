@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * 메모 요약 요청을 메모 작성자의 LLM 서버 대기열({@link LlmServerQueue})로 넘기는 리스너.
  * <p>
- * 같은 LLM 서버를 쓰는 요약은 순서대로, 서로 다른 서버의 요약은 동시에 처리한다.
+ * 같은 LLM 서버를 쓰는 요약은 순서대로, 서로 다른 서버의 요약은 동시에 처리하며 회원 한 명은 동시에 1건만 실행한다.
  * LLM을 설정하지 않은 회원의 요약은 회원별 대기열에 넣는다. (실행하면 설정 안내와 함께 바로 실패 처리)
  * </p>
  */
@@ -62,7 +62,7 @@ public class MemoSummaryEventListener {
     private void dispatch(Long memoId, Long userId, long revision) {
         String serverKey = llmSettingService.findServerAddress(userId).orElse("user:" + userId);
         try {
-            llmServerQueue.submit(serverKey, () -> memoSummaryService.summarize(memoId, revision));
+            llmServerQueue.submit(serverKey, userId, () -> memoSummaryService.summarize(memoId, revision));
         } catch (TaskRejectedException e) {
             log.warn("요약 대기열 초과 - memoId: {}, 서버: {}", memoId, serverKey);
             memoSummaryService.fail(memoId, revision, "요약 대기열이 가득 찼어요. 잠시 후 다시 요약해주세요.");
