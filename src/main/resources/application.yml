@@ -73,7 +73,8 @@ llm:
   queue-capacity: 100     # LLM 서버 하나의 요약 대기열 크기
   max-parallel: 8         # 전체 동시 요약 수 (서로 다른 LLM 서버는 동시에 처리)
   guard:                  # 회원이 입력하는 LLM 서버 주소 제한 (서버가 속한 내부망 탐색 방지)
-    allowed-networks: []  # 허용 대역(CIDR), 비우면 사설망·Tailscale 전체 — 예: Tailscale만 [100.64.0.0/10]
+    allowed-networks: [100.64.0.0/10, "fd7a:115c:a1e0::/48"]  # 허용 대역(CIDR) — 기본 Tailscale만, 비우면([]) 사설망·Tailscale 전체
     allowed-ports: [1234, 11434]  # 허용 포트 (LM Studio, Ollama 기본값), 비우면 전체
     probe-limit: 10       # 회원 한 명의 연결 테스트·서버 주소 변경 횟수
     probe-window: 1m      # 위 횟수를 세는 시간
+    share-email: ${LLM_SHARE_EMAIL:}  # 회원이 LLM PC를 Tailscale로 공유할 운영자 이메일 (연결 가이드에 표시)
