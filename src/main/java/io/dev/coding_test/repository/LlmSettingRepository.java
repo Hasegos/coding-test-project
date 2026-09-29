@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -20,4 +21,13 @@ public interface LlmSettingRepository extends JpaRepository<LlmSetting, Long> {
      */
     @Query("SELECT CONCAT(s.host, ':', CAST(s.port AS String)) FROM LlmSetting s WHERE s.userId = :userId")
     Optional<String> findServerAddress(@Param("userId") Long userId);
+
+    /**
+     * 다른 회원들이 같은 포트로 등록한 설정을 조회한다. (같은 LLM 서버를 이미 등록했는지 확인용)
+     *
+     * @param port   포트
+     * @param userId 제외할 회원 ID (본인)
+     * @return 설정 목록
+     */
+    List<LlmSetting> findByPortAndUserIdNot(int port, Long userId);
 }
