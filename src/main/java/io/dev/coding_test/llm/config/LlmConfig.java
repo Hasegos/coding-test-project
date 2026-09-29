@@ -1,6 +1,7 @@
 package io.dev.coding_test.llm.config;
 
 import io.dev.coding_test.llm.guard.LlmGuardProperties;
+import io.dev.coding_test.llm.queue.LlmBreakerProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,6 +13,6 @@ import org.springframework.context.annotation.Configuration;
  * </p>
  */
 @Configuration
-@EnableConfigurationProperties({LlmProperties.class, LlmGuardProperties.class})
+@EnableConfigurationProperties({LlmProperties.class, LlmGuardProperties.class, LlmBreakerProperties.class})
 public class LlmConfig {
 }

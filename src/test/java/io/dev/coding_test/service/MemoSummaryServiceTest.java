@@ -7,6 +7,8 @@ import io.dev.coding_test.dto.summary.MemoSummaryResponse;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.exception.LlmUnavailableException;
+import io.dev.coding_test.llm.queue.LlmServerBreaker;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.model.enums.SummaryStatus;
 import io.dev.coding_test.repository.LlmSettingRepository;
@@ -66,6 +68,9 @@ class MemoSummaryServiceTest {
     private FakeLlmClientFactory fakeLlmClientFactory;
 
     @Autowired
+    private LlmServerBreaker llmServerBreaker;
+
+    @Autowired
     private LlmSettingService llmSettingService;
 
     @Autowired
@@ -77,12 +82,14 @@ class MemoSummaryServiceTest {
     @BeforeEach
     void setUp() {
         userId = testUsers.login("tester").getUserId();
+        llmServerBreaker.clear();
         fakeLlmClient.reset();
         saveSetting();
     }
 
     @AfterEach
     void tearDown() {
+        llmServerBreaker.clear();
         testLoginContext.reset();
         fakeLlmClient.reset();
         memoRepository.deleteAll();
@@ -340,6 +347,59 @@ class MemoSummaryServiceTest {
         } finally {
             releaseSlow.countDown();
         }
+    }
+
+    @Test
+    void 서버가_연속으로_응답하지_않으면_쉬는_동안_요청하지_않고_바로_실패_처리한다() {
+        fakeLlmClient.willReturn((title, content) -> {
+            throw new LlmUnavailableException("LLM 응답 시간(120초)이 초과됐어요.", null);
+        });
+
+        for (int i = 1; i <= 3; i++) {
+            MemoResponse memo = memoService.create(userId, new MemoRequest("실패 " + i, "본문"));
+            awaitStatus(memo.memoId(), SummaryStatus.FAILED);
+        }
+        assertThat(fakeLlmClient.calls()).isEqualTo(3);
+
+        MemoResponse resting = memoService.create(userId, new MemoRequest("쉬는 중", "본문"));
+        awaitStatus(resting.memoId(), SummaryStatus.FAILED);
+
+        assertThat(fakeLlmClient.calls()).as("쉬는 서버에는 요청하지 않는다").isEqualTo(3);
+        assertThat(memoSummaryService.getSummary(userId, resting.memoId()).error())
+                .contains("잠시 쉬고 있어요").contains("LLM 설정에서 저장하면");
+    }
+
+    @Test
+    void 쉬는_중이어도_LLM_설정을_저장하면_다음_요약을_바로_시험하고_성공하면_정상으로_돌아온다() {
+        fakeLlmClient.willReturn((title, content) -> {
+            throw new LlmUnavailableException("연결할 수 없어요.", null);
+        });
+        for (int i = 1; i <= 3; i++) {
+            MemoResponse memo = memoService.create(userId, new MemoRequest("실패 " + i, "본문"));
+            awaitStatus(memo.memoId(), SummaryStatus.FAILED);
+        }
+        fakeLlmClient.reset();
+
+        saveSetting();
+        MemoResponse memo = memoService.create(userId, new MemoRequest("서버를 켠 뒤", "본문"));
+
+        awaitStatus(memo.memoId(), SummaryStatus.DONE);
+        MemoResponse next = memoService.create(userId, new MemoRequest("정상", "본문"));
+        awaitStatus(next.memoId(), SummaryStatus.DONE);
+    }
+
+    @Test
+    void 인증_실패나_서버_오류처럼_서버가_응답한_실패는_쉬게_하지_않는다() {
+        fakeLlmClient.willReturn((title, content) -> {
+            throw new LlmException("LLM 서버가 500 응답을 반환했어요.");
+        });
+
+        for (int i = 1; i <= 5; i++) {
+            MemoResponse memo = memoService.create(userId, new MemoRequest("오류 " + i, "본문"));
+            awaitStatus(memo.memoId(), SummaryStatus.FAILED);
+        }
+
+        assertThat(fakeLlmClient.calls()).as("5건 모두 서버에 요청").isEqualTo(5);
     }
 
     private void saveSetting() {

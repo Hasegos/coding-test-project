@@ -13,6 +13,7 @@ import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.guard.LlmProbeLimiter;
+import io.dev.coding_test.llm.queue.LlmServerBreaker;
 import io.dev.coding_test.model.LlmSetting;
 import io.dev.coding_test.model.enums.LlmProvider;
 import io.dev.coding_test.repository.LlmSettingRepository;
@@ -55,6 +56,7 @@ public class LlmSettingService {
     private final UserRepository userRepository;
     private final LlmClientFactory llmClientFactory;
     private final LlmProbeLimiter llmProbeLimiter;
+    private final LlmServerBreaker llmServerBreaker;
 
     /**
      * 회원의 접속 설정을 조회한다.
@@ -107,14 +109,16 @@ public class LlmSettingService {
      * <p>
      * API Key를 비워두면 기존 토큰을 유지하고, {@code clearApiKey}가 참이면 토큰을 삭제한다.
      * </p>
-     *
-     * @param userId  회원 ID
-     * @param request 접속 설정 저장 요청 (검증 완료)
      * <p>
      * 다른 회원이 이미 등록한 LLM 서버(IP·포트)로 바꾸려면 그 서버의 인증 토큰을 알아야 한다. ({@link #verifySharedServer})
      * 서버 IP만 알면 남의 LLM(GPU)을 쓸 수 있는 것을 막는다.
      * </p>
+     * <p>
+     * 저장하면 그 서버가 연속 실패로 쉬는 중이어도 다음 요약 1건은 바로 시험한다. ({@link LlmServerBreaker#allowTrial})
+     * </p>
      *
+     * @param userId  회원 ID
+     * @param request 접속 설정 저장 요청 (검증 완료)
      * @return 저장된 설정
      * @throws TooManyRequestsException 런타임·주소·포트를 짧은 시간에 너무 자주 바꾼 경우
      * @throws InvalidFieldException    다른 회원이 등록한 LLM 서버인데 인증 토큰을 확인하지 못한 경우
@@ -149,6 +153,7 @@ public class LlmSettingService {
         setting.setUpdatedAt(TimeUtil.now());
 
         llmSettingRepository.save(setting);
+        llmServerBreaker.allowTrial(setting.getHost() + ":" + setting.getPort());
         log.info("LLM 설정 저장 - userId: {}, provider: {}, host: {}, port: {}, model: {}", userId,
                 setting.getProvider(), setting.getHost(), setting.getPort(), setting.getModel());
         return LlmSettingResponse.from(setting);

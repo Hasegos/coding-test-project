@@ -5,6 +5,7 @@ import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.exception.LlmUnavailableException;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.model.enums.LlmProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -168,6 +169,15 @@ class OllamaLlmClientTest {
         assertThatThrownBy(() -> client.listModels())
                 .isInstanceOf(LlmException.class)
                 .matches(e -> (e instanceof LlmAuthException) == authFailure);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"401", "429", "500"})
+    void 서버가_응답한_오류는_응답하지_않음으로_분류하지_않는다(int status) {
+        server.expect(requestTo(BASE_URL + "/api/tags"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        assertThatThrownBy(() -> client.listModels()).isNotInstanceOf(LlmUnavailableException.class);
     }
 
     @Test

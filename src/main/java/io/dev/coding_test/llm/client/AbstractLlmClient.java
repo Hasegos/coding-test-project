@@ -5,6 +5,7 @@ import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmAuthException;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.exception.LlmUnavailableException;
 import io.dev.coding_test.llm.guard.LlmHostGuard;
 import io.dev.coding_test.llm.parser.SummaryResultParser;
 import io.dev.coding_test.llm.prompt.SummaryPrompt;
@@ -220,6 +221,7 @@ public abstract class AbstractLlmClient implements LlmClient {
 
     /**
      * HTTP 호출 예외를 사용자용 메시지를 가진 {@link LlmException}으로 변환한다.
+     * 연결 실패·시간 초과·통신 실패는 서버가 응답하지 않는 경우이므로 {@link LlmUnavailableException}으로 변환한다.
      * <p>
      * 응답 본문을 읽는 중 전체 제한 시간이 지나면 JDK 요청 팩토리가 스트림을 닫아 {@code IOException: closed}가 되므로,
      * 제한 시간만큼 지난 뒤의 I/O 오류도 시간 초과로 본다.
@@ -232,17 +234,17 @@ public abstract class AbstractLlmClient implements LlmClient {
             if (hasCause(e, HttpConnectTimeoutException.class) || hasCause(e, ConnectException.class)
                     || hasCause(e, NoRouteToHostException.class)) {
                 log.warn("LLM 서버 연결 실패 - baseUrl: {}, {}", baseUrl, e.getMostSpecificCause().toString());
-                return new LlmException(connectFailureMessage(connection), e);
+                return new LlmUnavailableException(connectFailureMessage(connection), e);
             }
             if (hasCause(e, HttpTimeoutException.class) || hasCause(e, SocketTimeoutException.class)
                     || elapsed.compareTo(timeout) >= 0) {
                 log.warn("LLM 응답 시간 초과 - baseUrl: {}, timeout: {}", baseUrl, timeout);
-                return new LlmException("LLM 응답 시간(" + format(timeout) + ")이 초과됐어요. "
+                return new LlmUnavailableException("LLM 응답 시간(" + format(timeout) + ")이 초과됐어요. "
                         + "서버 상태를 확인하거나 더 작은 모델을 사용해주세요.", e);
             }
         }
         log.warn("LLM 호출 실패 - baseUrl: {}", baseUrl, e);
-        return new LlmException("LLM 서버와 통신하지 못했어요. 서버 상태와 IP·포트를 확인해주세요.", e);
+        return new LlmUnavailableException("LLM 서버와 통신하지 못했어요. 서버 상태와 IP·포트를 확인해주세요.", e);
     }
 
     /**

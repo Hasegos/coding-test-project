@@ -72,6 +72,10 @@ llm:
   concurrency: 1          # LLM 서버 하나에 동시에 보낼 요약 수 (GPU 1장이면 1 권장)
   queue-capacity: 100     # LLM 서버 하나의 요약 대기열 크기
   max-parallel: 8         # 전체 동시 요약 수 (서로 다른 LLM 서버는 동시에 처리)
+  breaker:                # 응답하지 않는 LLM 서버 휴식 — 연속 실패 서버가 요약 처리 스레드를 붙잡지 않도록
+    failure-threshold: 3  # 연속 실패(연결 실패·시간 초과) 횟수
+    cooldown: 5m          # 처음 쉬는 시간, 다시 실패할 때마다 두 배로 늘어남
+    max-cooldown: 1h      # 쉬는 시간의 최대값
   guard:                  # 회원이 입력하는 LLM 서버 주소 제한 (서버가 속한 내부망 탐색 방지)
     allowed-networks: [100.64.0.0/10, "fd7a:115c:a1e0::/48"]  # 허용 대역(CIDR) — 기본 Tailscale만, 비우면([]) 사설망·Tailscale 전체
     allowed-ports: [1234, 11434]  # 허용 포트 (LM Studio, Ollama 기본값), 비우면 전체

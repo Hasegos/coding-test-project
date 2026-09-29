@@ -109,6 +109,75 @@ class LlmServerQueueTest {
         assertThat(queue.serverCount()).isZero();
     }
 
+    // ===================== 회원당 동시 실행 1건 =====================
+
+    @Test
+    void 회원_한_명은_서버가_달라도_동시에_1건만_실행한다() throws InterruptedException {
+        CountDownLatch secondRan = new CountDownLatch(1);
+
+        queue.submit(SERVER_A, 1L, this::block);
+        queue.submit(SERVER_B, 1L, secondRan::countDown);
+
+        assertThat(secondRan.await(300, TimeUnit.MILLISECONDS)).as("같은 회원의 두 번째 요약은 기다린다").isFalse();
+        assertThat(queue.runningUserCount()).isEqualTo(1);
+
+        gate.countDown();
+        assertThat(secondRan.await(5, TimeUnit.SECONDS)).as("첫 요약이 끝나면 다른 서버 대기열의 두 번째 요약이 실행된다").isTrue();
+    }
+
+    @Test
+    void 같은_회원의_요약이_기다리는_동안_다른_회원의_요약이_먼저_실행된다() throws InterruptedException {
+        List<String> order = new CopyOnWriteArrayList<>();
+        CountDownLatch otherRan = new CountDownLatch(1);
+
+        queue.submit(SERVER_A, 1L, () -> {
+            block();
+            order.add("A1");
+        });
+        queue.submit(SERVER_B, 1L, () -> order.add("A2"));
+        queue.submit(SERVER_B, 2L, () -> {
+            order.add("B1");
+            otherRan.countDown();
+        });
+
+        assertThat(otherRan.await(5, TimeUnit.SECONDS)).as("서버 B의 앞줄에 회원 1이 기다려도 회원 2는 바로 실행").isTrue();
+        assertThat(order).containsExactly("B1");
+
+        gate.countDown();
+        await().atMost(TIMEOUT).until(() -> order.size() == 3);
+        assertThat(order).containsExactly("B1", "A1", "A2");
+    }
+
+    @Test
+    void 회원의_작업이_끝나면_회원_수_기록을_지운다() {
+        queue.submit(SERVER_A, 1L, () -> { });
+        queue.submit(SERVER_A, 1L, () -> { });
+
+        await().atMost(TIMEOUT).until(() -> queue.serverCount() == 0);
+        assertThat(queue.runningUserCount()).isZero();
+    }
+
+    @Test
+    void 작업이_예외로_끝나도_회원의_다음_작업을_실행한다() throws InterruptedException {
+        CountDownLatch done = new CountDownLatch(1);
+
+        queue.submit(SERVER_A, 1L, () -> {
+            throw new IllegalStateException("요약 실패");
+        });
+        queue.submit(SERVER_B, 1L, done::countDown);
+
+        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+    }
+
+    @Test
+    void 실행기가_종료돼도_회원_수_기록이_남지_않는다() {
+        executor.shutdown();
+
+        assertThatThrownBy(() -> queue.submit(SERVER_A, 1L, () -> { })).isInstanceOf(TaskRejectedException.class);
+        assertThat(queue.runningUserCount()).isZero();
+        assertThat(queue.serverCount()).isZero();
+    }
+
     private void block() {
         try {
             gate.await(10, TimeUnit.SECONDS);
