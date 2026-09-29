@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/head :: head('회원가입')}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/pages/auth.css}">
+    <script th:src="@{/js/auth.js}" defer></script>
+</head>
+<body>
+<div th:replace="~{fragments/header :: header}"></div>
+
+<main class="container auth">
+    <section class="auth__card card">
+        <h1 class="auth__title">회원가입</h1>
+        <p class="auth__desc">이메일로 가입하고, 화면에 표시할 닉네임을 정해주세요.</p>
+
+        <form class="auth__form" th:action="@{/signup}" th:object="${signupRequest}" method="post" novalidate
+              data-auth-form="signup">
+            <div class="field">
+                <label class="field__label" for="username">아이디 (이메일)</label>
+                <input class="field__input" id="username" type="email" th:field="*{username}"
+                       th:classappend="${#fields.hasErrors('username')} ? 'field__input--error'"
+                       placeholder="user@example.com" maxlength="100" autocomplete="username" autocapitalize="off"
+                       spellcheck="false" required autofocus>
+                <p class="field__hint">로그인에 사용할 이메일 주소</p>
+                <p class="field__error" data-error-for="username" aria-live="polite"
+                   th:text="${#fields.hasErrors('username')} ? ${#fields.errors('username')[0]} : ''"></p>
+            </div>
+            <div class="field">
+                <label class="field__label" for="password">비밀번호</label>
+                <input class="field__input" id="password" type="password" th:field="*{password}"
+                       th:classappend="${#fields.hasErrors('password')} ? 'field__input--error'"
+                       maxlength="64" autocomplete="new-password" required>
+                <p class="field__hint">영문·숫자·특수문자를 모두 포함해 8~64자</p>
+                <p class="field__error" data-error-for="password" aria-live="polite"
+                   th:text="${#fields.hasErrors('password')} ? ${#fields.errors('password')[0]} : ''"></p>
+            </div>
+            <div class="field">
+                <label class="field__label" for="passwordConfirm">비밀번호 확인</label>
+                <input class="field__input" id="passwordConfirm" type="password" th:field="*{passwordConfirm}"
+                       th:classappend="${#fields.hasErrors('passwordConfirm')} ? 'field__input--error'"
+                       maxlength="64" autocomplete="new-password" required>
+                <p class="field__error" data-error-for="passwordConfirm" aria-live="polite"
+                   th:text="${#fields.hasErrors('passwordConfirm')} ? ${#fields.errors('passwordConfirm')[0]} : ''"></p>
+            </div>
+            <div class="field">
+                <label class="field__label" for="nickname">닉네임</label>
+                <input class="field__input" id="nickname" type="text" th:field="*{nickname}"
+                       th:classappend="${#fields.hasErrors('nickname')} ? 'field__input--error'"
+                       maxlength="12" autocomplete="nickname" required>
+                <p class="field__hint">한글·영문·숫자·밑줄(_) 2~12자, 우측 상단에 표시돼요</p>
+                <p class="field__error" data-error-for="nickname" aria-live="polite"
+                   th:text="${#fields.hasErrors('nickname')} ? ${#fields.errors('nickname')[0]} : ''"></p>
+            </div>
+            <button class="btn btn--primary auth__submit" type="submit">가입하기</button>
+        </form>
+
+        <p class="auth__switch">
+            이미 회원이신가요? <a th:href="@{/login}">로그인</a>
+        </p>
+    </section>
+</main>
+
+<div th:replace="~{fragments/footer :: footer}"></div>
+</body>
+</html>

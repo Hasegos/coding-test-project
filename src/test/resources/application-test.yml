@@ -1,0 +1,23 @@
+spring:
+  config:
+    activate:
+      on-profile: test # 테스트 환경 (PostgreSQL 없이 H2 인메모리 DB 사용)
+
+  datasource:
+    url: jdbc:h2:mem:ai_memo;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        generate_statistics: true # 쿼리 수 검증(MemoQueryCountTest)용
+
+# 테스트 전용 암호화 키 (운영 키와 무관)
+app:
+  crypto:
+    secret-key: dGVzdC1vbmx5LWtleS0wMTIzNDU2Nzg5YWJjZGVmMDE=

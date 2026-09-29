@@ -1,0 +1,128 @@
+.settings-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+@media (min-width: 900px) {
+    .settings-layout { grid-template-columns: minmax(0, 1fr) 340px; }
+}
+
+.settings-form {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+fieldset.field { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.field > legend { padding: 0; margin-bottom: 8px; }
+
+.field__optional { font-weight: 400; color: var(--text-subtle); }
+
+/* 런타임 선택 */
+.segmented {
+    display: inline-flex;
+    padding: 4px;
+    gap: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    width: fit-content;
+}
+.segmented__item { position: relative; }
+.segmented__item input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented__item span {
+    display: block;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.segmented__item input:checked + span { background: var(--surface); color: var(--primary); box-shadow: var(--shadow); }
+.segmented__item input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* IP · 포트 */
+.field-row { display: flex; gap: 12px; }
+.field-row__grow { flex: 1; min-width: 0; }
+.field-row__port { width: 120px; flex: none; }
+.settings-form > .field__hint { margin-top: -12px; }
+
+.checkbox { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+
+/* 연결 테스트 */
+.connection-test {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+}
+.connection-test__result { font-size: 14px; color: var(--text-muted); word-break: keep-all; overflow-wrap: anywhere; }
+.connection-test__result--ok { color: var(--success); font-weight: 600; }
+.connection-test__result--error { color: var(--danger); }
+
+.model-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.model-chips:empty { display: none; }
+.model-chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 13px;
+    font-family: var(--mono);
+}
+.model-chip:hover { border-color: var(--primary); color: var(--primary); }
+.model-chip--selected,
+.model-chip--selected:hover { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+
+.settings-form__actions { display: flex; justify-content: flex-end; }
+
+/* 도움말 */
+.settings-help { padding: 20px; }
+.settings-help__title { font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+.settings-help__list {
+    list-style: decimal;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--text-muted);
+    word-break: keep-all;
+}
+.settings-help__list strong { display: block; color: var(--text); }
+.settings-help__list strong.settings-help__inline { display: inline; }
+.settings-help__desc {
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    word-break: keep-all;
+}
+.settings-help a,
+.field__link {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.settings-help a:hover,
+.field__link:hover { color: var(--primary-hover); }
+.settings-help { scroll-margin-top: 80px; }
+.settings-help__list code {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--surface-2);
+}
+
+@media (max-width: 520px) {
+    .settings-form { padding: 16px; }
+    .field-row__port { width: 96px; }
+}

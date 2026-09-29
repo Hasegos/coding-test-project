@@ -1,0 +1,20 @@
+spring:
+  config:
+    activate:
+      on-profile: dev # 개발 환경
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  thymeleaf:
+    cache: false
+
+  web:
+    resources:
+      chain:
+        cache: false       # 개발 중 CSS/JS 수정이 바로 반영되도록 리소스 캐시 비활성화
+      cache:
+        cachecontrol:
+          max-age: 0

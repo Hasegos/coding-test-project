@@ -1,0 +1,35 @@
+.memo-form {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.field__textarea { min-height: 320px; line-height: 1.7; }
+
+.memo-form__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+.memo-form__hint { font-size: 12px; color: var(--text-subtle); }
+.memo-form__hint kbd {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--surface-2);
+}
+
+.memo-form__buttons { display: flex; gap: 8px; margin-left: auto; }
+
+@media (max-width: 520px) {
+    .memo-form { padding: 16px; }
+    .memo-form__hint { display: none; }
+}

@@ -1,0 +1,82 @@
+-- =====================================================================
+-- AI Memo PostgreSQL 스키마
+-- 운영(prod) 프로파일은 ddl-auto: validate 이므로 최초 배포 전에 이 스크립트로 테이블을 생성한다.
+-- psql -U $POSTGRESQL_USERNAME -d $POSTGRESQL_DATABASE -f schema.sql
+--
+-- 이전 버전으로 만든 DB는 회원 테이블 이름(member → users)과 memo·llm_setting의 작성자 컬럼(user_id)이 다르다.
+-- 데이터를 지운 상태라면 아래 테이블을 삭제한 뒤 이 스크립트를 다시 실행한다.
+--   DROP TABLE IF EXISTS memo_todo, memo, llm_setting, member, users;
+-- =====================================================================
+
+-- 회원 (비밀번호는 BCrypt 해시만 저장)
+CREATE TABLE IF NOT EXISTS users (
+    user_id     BIGSERIAL       PRIMARY KEY,
+    username    VARCHAR(100)    NOT NULL,                       -- 로그인 아이디 (이메일, 소문자로 저장)
+    password    VARCHAR(100)    NOT NULL,                       -- {bcrypt}$2a$10$...
+    nickname    VARCHAR(20)     NOT NULL,
+    role        VARCHAR(20)     NOT NULL DEFAULT 'USER',        -- USER
+    created_at  TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT uk_users_username UNIQUE (username),
+    CONSTRAINT ck_users_role CHECK (role IN ('USER'))
+);
+
+-- 메모
+CREATE TABLE IF NOT EXISTS memo (
+    memo_id         BIGSERIAL       PRIMARY KEY,
+    user_id         BIGINT          NOT NULL,                    -- 작성자 (작성자만 조회·수정·삭제)
+    title           VARCHAR(200)    NOT NULL,
+    content         TEXT            NOT NULL,
+    revision        BIGINT          NOT NULL DEFAULT 0,          -- 제목/본문 수정 시 증가 (오래된 요약 결과 폐기 기준)
+    summary_status  VARCHAR(20)     NOT NULL DEFAULT 'PENDING',  -- PENDING | PROCESSING | DONE | FAILED
+    summary         TEXT,
+    summary_error   VARCHAR(500),
+    summary_model   VARCHAR(100),
+    summarized_at   TIMESTAMP(6),
+    created_at      TIMESTAMP(6)    NOT NULL,
+    updated_at      TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT fk_memo_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT ck_memo_summary_status CHECK (summary_status IN ('PENDING', 'PROCESSING', 'DONE', 'FAILED'))
+);
+
+-- 회원별 목록 최신순 정렬
+CREATE INDEX IF NOT EXISTS idx_memo_user_created_at ON memo (user_id, created_at DESC, memo_id DESC);
+
+-- 기동 시 미완료 요약(PENDING/PROCESSING) 재요청 조회
+CREATE INDEX IF NOT EXISTS idx_memo_summary_status ON memo (summary_status);
+
+-- LLM이 추출한 할 일
+CREATE TABLE IF NOT EXISTS memo_todo (
+    todo_id     BIGSERIAL       PRIMARY KEY,
+    memo_id     BIGINT          NOT NULL REFERENCES memo (memo_id) ON DELETE CASCADE,
+    content     VARCHAR(500)    NOT NULL,
+    sort_order  INTEGER         NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memo_todo_memo_id ON memo_todo (memo_id, sort_order);
+
+-- 로컬 LLM 서버 접속 설정 (LLM 설정 화면에서 저장, 회원당 1행)
+CREATE TABLE IF NOT EXISTS llm_setting (
+    user_id     BIGINT          PRIMARY KEY,                    -- 회원 ID
+    provider    VARCHAR(20)     NOT NULL,                       -- OLLAMA | LMSTUDIO
+    host        VARCHAR(45)     NOT NULL,                       -- 로컬 전용 IP (사설망 · Tailscale 대역, IPv6 포함)
+    port        INTEGER         NOT NULL,
+    model       VARCHAR(100)    NOT NULL,
+    api_key     VARCHAR(400),                                   -- AES-256-GCM 암호문 (v1:...)
+    updated_at  TIMESTAMP(6)    NOT NULL,
+    CONSTRAINT fk_llm_setting_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT ck_llm_setting_provider CHECK (provider IN ('OLLAMA', 'LMSTUDIO')),
+    CONSTRAINT ck_llm_setting_port CHECK (port BETWEEN 1 AND 65535)
+);
+
+-- 이전 버전(host VARCHAR(15), IPv4 전용)으로 만든 DB는 IPv6 주소를 저장할 수 있도록 길이를 늘린다.
+ALTER TABLE llm_setting ALTER COLUMN host TYPE VARCHAR(45);
+-- API Key 암호화 이전 버전 DB는 암호문을 저장할 수 있도록 길이를 늘린다.
+ALTER TABLE llm_setting ALTER COLUMN api_key TYPE VARCHAR(400);
+-- 아이디를 이메일로 바꾼 이전 버전 DB는 이메일 길이만큼 늘린다.
+ALTER TABLE users ALTER COLUMN username TYPE VARCHAR(100);
+
+-- (선택) 메모가 많아져 제목·본문 검색(LIKE '%키워드%')이 느려지면 trigram 인덱스를 추가한다.
+-- pg_trgm 확장 설치 권한이 필요하다.
+-- CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- CREATE INDEX IF NOT EXISTS idx_memo_title_trgm   ON memo USING gin (lower(title) gin_trgm_ops);
+-- CREATE INDEX IF NOT EXISTS idx_memo_content_trgm ON memo USING gin (lower(content) gin_trgm_ops);

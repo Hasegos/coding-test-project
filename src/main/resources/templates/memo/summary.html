@@ -1,0 +1,68 @@
+<!-- 메모 상세 AI 요약 패널 (상세 페이지 최초 렌더링 + 상태 변경 시 fragment 교체에 공통 사용) -->
+<aside class="summary card" th:fragment="panel"
+       th:with="summary=${memo.summary}, inProgress=${memo.summary.inProgress}"
+       th:attr="data-memo-id=${memo.memoId},data-status=${summary.status}"
+       data-summary-panel aria-labelledby="summary-title" aria-live="polite">
+
+    <div class="summary__head">
+        <h2 class="summary__title" id="summary-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>
+                <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>
+            </svg>
+            AI 요약
+        </h2>
+        <span class="badge" th:classappend="'badge--' + ${#strings.toLowerCase(summary.status)}"
+              th:text="${summary.status.label}">요약 완료</span>
+    </div>
+
+    <!-- 요약 중 -->
+    <div class="summary__loading" th:if="${inProgress}">
+        <div class="summary__spinner" aria-hidden="true"></div>
+        <p class="summary__loading-text"
+           th:text="${summary.status.name() == 'PENDING'} ? '요약 대기열에 등록됐어요. 곧 시작해요.' : '로컬 LLM이 메모를 정리하고 있어요…'">
+            로컬 LLM이 메모를 정리하고 있어요…
+        </p>
+        <div class="skeleton" aria-hidden="true">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+
+    <!-- 실패 -->
+    <div class="summary__error" th:if="${summary.status.name() == 'FAILED'}" role="alert">
+        <strong>요약하지 못했어요</strong>
+        <p th:text="${summary.error}">로컬 LLM 서버에 연결할 수 없어요.</p>
+    </div>
+
+    <!-- 요약 결과 (실패 시에도 이전 요약이 있으면 표시) -->
+    <th:block th:if="${!inProgress and summary.summary != null}">
+        <p class="summary__note" th:if="${summary.status.name() == 'FAILED'}">이전 요약 결과예요.</p>
+        <p class="summary__text" th:text="${summary.summary}">요약문</p>
+
+        <div class="todos">
+            <h3 class="todos__title">
+                할 일 <span class="todos__count" th:text="${summary.todos.size()}">3</span>
+            </h3>
+            <ul class="todos__list" th:unless="${summary.todos.isEmpty()}">
+                <li class="todos__item" th:each="todo : ${summary.todos}">
+                    <span class="todos__check" aria-hidden="true"></span>
+                    <span th:text="${todo}">할 일</span>
+                </li>
+            </ul>
+            <p class="todos__empty" th:if="${summary.todos.isEmpty()}">메모에서 추출된 할 일이 없어요.</p>
+        </div>
+    </th:block>
+
+    <div class="summary__foot" th:unless="${inProgress}">
+        <span class="summary__meta" th:if="${summary.summarizedAt != null}">
+            <th:block th:text="${summary.model}">qwen2.5:7b</th:block> ·
+            <time th:datetime="${summary.summarizedAt}"
+                  th:text="${#temporals.format(summary.summarizedAt, 'MM.dd HH:mm')}">09.28 14:03</time>
+        </span>
+        <form class="summary__retry" th:action="@{/memos/{id}/summary(id=${memo.memoId})}" method="post" data-summary-retry>
+            <button class="btn btn--sm" type="submit"
+                    th:text="${summary.status.name() == 'FAILED'} ? '다시 시도' : '다시 요약'">다시 요약</button>
+        </form>
+    </div>
+</aside>

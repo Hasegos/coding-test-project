@@ -1,0 +1,291 @@
+package io.dev.coding_test.service;
+
+import io.dev.coding_test.common.exception.NotFoundException;
+import io.dev.coding_test.common.util.SummaryStatusUtil;
+import io.dev.coding_test.common.util.TimeUtil;
+import io.dev.coding_test.dto.memo.MemoRevision;
+import io.dev.coding_test.dto.summary.MemoSummaryResponse;
+import io.dev.coding_test.dto.summary.MemoSummaryStatusResponse;
+import io.dev.coding_test.event.MemoSummaryRequestedEvent;
+import io.dev.coding_test.llm.client.LlmClient;
+import io.dev.coding_test.llm.client.LlmClientFactory;
+import io.dev.coding_test.llm.dto.LlmConnection;
+import io.dev.coding_test.llm.dto.SummaryResult;
+import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.exception.LlmUnavailableException;
+import io.dev.coding_test.llm.queue.LlmServerBreaker;
+import io.dev.coding_test.model.Memo;
+import io.dev.coding_test.model.MemoTodo;
+import io.dev.coding_test.model.enums.SummaryStatus;
+import io.dev.coding_test.repository.MemoRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * 로컬 LLM을 이용한 메모 요약·할 일 추출 로직을 처리하는 서비스.
+ * <p>
+ * 처리 흐름:
+ * </p>
+ * <ol>
+ *     <li>메모 저장/수정/재요약 요청 시 {@link #requestSummary(Memo)}가 PENDING으로 바꾸고 이벤트를 발행한다.</li>
+ *     <li>트랜잭션 커밋 후 {@code MemoSummaryEventListener}가 작성자의 LLM 서버 대기열({@code LlmServerQueue})에 넣고,
+ *         차례가 되면 {@link #summarize(Long, long)}를 실행한다.</li>
+ *     <li>LLM 호출은 DB 커넥션을 잡지 않도록 트랜잭션 밖에서 수행하고, 결과 반영은 짧은 새 트랜잭션에서 처리한다.</li>
+ *     <li>요약 중 메모가 수정·삭제되면 revision이 달라지므로 오래된 결과는 버린다.</li>
+ *     <li>서버가 연속으로 응답하지 않으면({@link LlmServerBreaker}) 잠시 쉬는 동안 요청하지 않고 바로 실패 처리한다.</li>
+ * </ol>
+ * <p>
+ * 요약은 메모 작성자의 LLM 설정으로 실행하고, 조회·재요약은 로그인한 회원 자신의 메모만 다룬다.
+ * </p>
+ */
+@Slf4j
+@Service
+public class MemoSummaryService {
+
+    public static final int MAX_ERROR_LENGTH = 500;
+
+    public static final String NOT_CONFIGURED_MESSAGE =
+            "LLM 서버가 설정되지 않았어요. 상단 'LLM 설정'에서 LLM PC의 Tailscale IP를 입력한 뒤 다시 시도해주세요.";
+
+    private final MemoRepository memoRepository;
+    private final LlmSettingService llmSettingService;
+    private final LlmClientFactory llmClientFactory;
+    private final LlmServerBreaker llmServerBreaker;
+    private final ApplicationEventPublisher eventPublisher;
+    private final TransactionTemplate newTransaction;
+
+    public MemoSummaryService(MemoRepository memoRepository,
+                              LlmSettingService llmSettingService,
+                              LlmClientFactory llmClientFactory,
+                              LlmServerBreaker llmServerBreaker,
+                              ApplicationEventPublisher eventPublisher,
+                              PlatformTransactionManager transactionManager) {
+        this.memoRepository = memoRepository;
+        this.llmSettingService = llmSettingService;
+        this.llmClientFactory = llmClientFactory;
+        this.llmServerBreaker = llmServerBreaker;
+        this.eventPublisher = eventPublisher;
+        // 커밋 후(AFTER_COMMIT) 콜백에서도 항상 독립된 트랜잭션으로 반영되도록 REQUIRES_NEW 사용
+        this.newTransaction = new TransactionTemplate(transactionManager);
+        this.newTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    /**
+     * 메모를 요약 대기 상태로 바꾸고 요약 요청 이벤트를 발행한다.
+     * 호출한 트랜잭션이 커밋된 뒤에 실제 요약이 시작된다.
+     *
+     * @param memo 요약할 메모 (영속 상태)
+     */
+    public void requestSummary(Memo memo) {
+        memo.setSummaryStatus(SummaryStatus.PENDING);
+        memo.setSummaryError(null);
+        eventPublisher.publishEvent(
+                new MemoSummaryRequestedEvent(memo.getMemoId(), memo.getUser().getUserId(), memo.getRevision()));
+        log.info("요약 요청 - memoId: {}, revision: {}", memo.getMemoId(), memo.getRevision());
+    }
+
+    /**
+     * 메모의 요약 결과를 조회한다.
+     *
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
+     * @return 요약 결과
+     * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
+     */
+    @Transactional(readOnly = true)
+    public MemoSummaryResponse getSummary(Long userId, Long memoId) {
+        return MemoSummaryResponse.from(memoRepository.findWithTodosByMemoIdAndUserUserId(memoId, userId)
+                .orElseThrow(() -> notFound(memoId)));
+    }
+
+    /**
+     * 메모의 요약 상태만 조회한다. (화면의 요약 상태 폴링 — 본문·할 일을 읽지 않는 1쿼리)
+     *
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
+     * @return 요약 상태
+     * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
+     */
+    @Transactional(readOnly = true)
+    public MemoSummaryStatusResponse getSummaryStatus(Long userId, Long memoId) {
+        SummaryStatus status = memoRepository.findSummaryStatus(memoId, userId)
+                .orElseThrow(() -> notFound(memoId));
+        return MemoSummaryStatusResponse.of(status);
+    }
+
+    /**
+     * 메모 재요약을 요청한다. 이미 요약 중(PENDING/PROCESSING)이면 중복 요청하지 않는다.
+     *
+     * @param userId 로그인한 회원 ID
+     * @param memoId 메모 ID
+     * @return 요청 후 요약 상태
+     * @throws NotFoundException 메모가 없거나 다른 회원의 메모일 경우
+     */
+    @Transactional
+    public MemoSummaryResponse retry(Long userId, Long memoId) {
+        Memo memo = memoRepository.findWithTodosByMemoIdAndUserUserId(memoId, userId)
+                .orElseThrow(() -> notFound(memoId));
+        if (!SummaryStatusUtil.isInProgress(memo.getSummaryStatus())) {
+            requestSummary(memo);
+        }
+        return MemoSummaryResponse.from(memo);
+    }
+
+    /**
+     * 회원의 요약에 실패한 메모를 모두 다시 요약 요청한다. (LLM 설정을 저장한 직후 호출)
+     *
+     * @param userId 로그인한 회원 ID
+     * @return 다시 요청한 메모 수
+     */
+    @Transactional
+    public int retryFailed(Long userId) {
+        // 메모 본문을 읽지 않도록 ID·revision만 조회하고, 상태는 UPDATE 한 번으로 바꾼다.
+        List<MemoRevision> failed = memoRepository.findRevisions(userId, SummaryStatus.FAILED);
+        if (failed.isEmpty()) {
+            return 0;
+        }
+        memoRepository.markPendingByStatus(userId, SummaryStatus.FAILED);
+        failed.forEach(memo -> eventPublisher.publishEvent(
+                new MemoSummaryRequestedEvent(memo.memoId(), memo.userId(), memo.revision())));
+        log.info("실패한 요약 재요청 - userId: {}, {}건", userId, failed.size());
+        return failed.size();
+    }
+
+    /**
+     * 메모 작성자의 LLM 설정으로 메모를 요약하고 결과를 반영한다. (LLM 전용 실행기에서 호출)
+     *
+     * @param memoId   메모 ID
+     * @param revision 요약 요청 시점의 메모 revision
+     */
+    public void summarize(Long memoId, long revision) {
+        Optional<MemoSnapshot> snapshot = newTransaction.execute(status ->
+                findCurrent(memoId, revision).map(memo -> {
+                    memo.setSummaryStatus(SummaryStatus.PROCESSING);
+                    return new MemoSnapshot(memo.getUser().getUserId(), memo.getTitle(), memo.getContent());
+                }));
+        if (snapshot == null || snapshot.isEmpty()) {
+            log.info("요약 건너뜀(삭제 또는 수정됨) - memoId: {}, revision: {}", memoId, revision);
+            return;
+        }
+
+        Optional<LlmConnection> connection = llmSettingService.findConnection(snapshot.get().userId());
+        if (connection.isEmpty()) {
+            log.warn("요약 실패(LLM 미설정) - userId: {}, memoId: {}", snapshot.get().userId(), memoId);
+            fail(memoId, revision, NOT_CONFIGURED_MESSAGE);
+            return;
+        }
+
+        // 연속으로 응답하지 않은 서버는 쉬는 동안 요청하지 않고 바로 실패 처리한다. (처리 스레드를 붙잡지 않음)
+        String serverKey = connection.get().host() + ":" + connection.get().port();
+        Optional<Duration> resting = llmServerBreaker.openFor(serverKey);
+        if (resting.isPresent()) {
+            log.warn("요약 실패(LLM 서버 휴식 중) - server: {}, memoId: {}", serverKey, memoId);
+            fail(memoId, revision, LlmServerBreaker.message(resting.get()));
+            return;
+        }
+
+        // 저장된 주소도 호출 직전에 다시 검사하므로(LlmHostGuard) 클라이언트 생성 실패도 요약 실패로 기록한다.
+        LlmClient llmClient;
+        SummaryResult result;
+        try {
+            llmClient = llmClientFactory.getClient(connection.get());
+            result = llmClient.summarize(snapshot.get().title(), snapshot.get().content());
+        } catch (LlmUnavailableException e) {
+            llmServerBreaker.recordFailure(serverKey);
+            log.warn("요약 실패 - memoId: {}, 사유: {}", memoId, e.getMessage());
+            fail(memoId, revision, e.getMessage());
+            return;
+        } catch (LlmException e) {
+            log.warn("요약 실패 - memoId: {}, 사유: {}", memoId, e.getMessage());
+            fail(memoId, revision, e.getMessage());
+            return;
+        } catch (RuntimeException e) {
+            log.error("요약 중 예상치 못한 오류 - memoId: {}", memoId, e);
+            fail(memoId, revision, "요약 중 알 수 없는 오류가 발생했어요.");
+            return;
+        }
+
+        llmServerBreaker.recordSuccess(serverKey);
+        newTransaction.executeWithoutResult(status ->
+                findCurrent(memoId, revision).ifPresentOrElse(
+                        memo -> {
+                            applySummary(memo, result, llmClient.model());
+                            log.info("요약 완료 - memoId: {}, 할 일: {}개", memoId, result.todos().size());
+                        },
+                        () -> log.info("요약 결과 폐기(삭제 또는 수정됨) - memoId: {}, revision: {}", memoId, revision)
+                ));
+    }
+
+    /**
+     * 요약 실패를 기록한다. 요청 이후 메모가 수정·삭제됐다면 무시한다.
+     *
+     * @param memoId   메모 ID
+     * @param revision 요약 요청 시점의 메모 revision
+     * @param error    사용자에게 보여줄 실패 사유
+     */
+    public void fail(Long memoId, long revision, String error) {
+        String message = error.length() <= MAX_ERROR_LENGTH ? error : error.substring(0, MAX_ERROR_LENGTH - 1) + "…";
+        newTransaction.executeWithoutResult(status ->
+                findCurrent(memoId, revision).ifPresent(memo -> {
+                    // 이전에 성공한 요약이 있으면 그대로 두고 상태와 실패 사유만 기록한다.
+                    memo.setSummaryStatus(SummaryStatus.FAILED);
+                    memo.setSummaryError(message);
+                }));
+    }
+
+    /**
+     * 메모의 기존 요약 결과(요약문, 모델, 요약 일시, 할 일)를 비운다. (내용 수정 시)
+     *
+     * @param memo 요약을 비울 메모 (영속 상태)
+     */
+    public void clearSummary(Memo memo) {
+        memo.setSummary(null);
+        memo.setSummaryModel(null);
+        memo.setSummarizedAt(null);
+        memo.getTodos().clear();
+    }
+
+    /**
+     * 요약 결과를 메모에 반영하고 완료 상태로 변경한다. 기존 할 일 목록은 새 목록으로 교체한다.
+     */
+    private void applySummary(Memo memo, SummaryResult result, String model) {
+        memo.setSummary(result.summary());
+        memo.setSummaryModel(model);
+        memo.setSummaryError(null);
+        memo.setSummarizedAt(TimeUtil.now());
+        memo.setSummaryStatus(SummaryStatus.DONE);
+
+        memo.getTodos().clear();
+        List<String> todos = result.todos();
+        for (int i = 0; i < todos.size(); i++) {
+            MemoTodo todo = new MemoTodo();
+            todo.setMemo(memo);
+            todo.setContent(todos.get(i));
+            todo.setSortOrder(i);
+            memo.getTodos().add(todo);
+        }
+    }
+
+    /**
+     * 요청 시점과 revision이 같은(=그 사이 수정되지 않은) 메모만 조회한다.
+     */
+    private Optional<Memo> findCurrent(Long memoId, long revision) {
+        return memoRepository.findById(memoId).filter(memo -> memo.getRevision() == revision);
+    }
+
+    private static NotFoundException notFound(Long memoId) {
+        return new NotFoundException("존재하지 않는 메모입니다. memoId: " + memoId);
+    }
+
+    private record MemoSnapshot(Long userId, String title, String content) {
+    }
+}
