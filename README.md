@@ -29,8 +29,8 @@
 
 ## 🛠️ 기술 스택
 
-+ **Language**: <img src="https://img.shields.io/badge/Java%2021-007396?style=for-the-badge&logo=openjdk&logoColor=white" />
-+ **Framework**: <img src="https://img.shields.io/badge/Spring%20Boot%204.0.6-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" /> <img src="https://img.shields.io/badge/Spring%20Data%20JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white" /> <img src="https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white" />
++ **Language**: <img src="https://img.shields.io/badge/Java-007396?style=for-the-badge&logo=openjdk&logoColor=white" />
++ **Framework**: <img src="https://img.shields.io/badge/Spring%20Boot-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" /> <img src="https://img.shields.io/badge/Spring%20Data%20JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white" /> <img src="https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white" />
 + **View**: <img src="https://img.shields.io/badge/Thymeleaf-005F0F?style=for-the-badge&logo=thymeleaf&logoColor=white" /> — 서버 렌더링 + Vanilla JS(요약 상태 폴링, 연결 테스트)
 + **Database**: <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" /> — 테스트는 H2(PostgreSQL 모드)
 + **AI 연동**: <img src="https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white" /> <img src="https://img.shields.io/badge/LM%20Studio-4338CA?style=for-the-badge&logoColor=white" /> — `RestClient`(JDK HttpClient) 로 직접 호출
@@ -39,10 +39,8 @@
 ## ✨ 핵심 기능
 
 ### 1) 회원가입 / 로그인
-+ 아이디(**이메일**, 100자 이하)·비밀번호(**영문·숫자·특수문자 포함 8~64자**)·비밀번호 확인·닉네임(2~12자)으로 가입합니다.
-+ 회원가입과 로그인 모두 같은 정규식으로 **화면(JS)과 서버(Java)** 에서 검증합니다. 로그인은 형식이 틀리면 DB 를 조회하지 않고 바로 안내합니다.
-+ 비밀번호는 **BCrypt 해시**로만 저장하고, 세션 기반 폼 로그인을 사용합니다. 로그인 후에는 처음 요청했던 화면으로 돌아갑니다.
-+ 비밀번호를 **5회 틀리면 5분간 로그인이 잠깁니다.** (같은 IP·아이디 기준, 같은 IP 에서 아이디를 바꿔 가며 20회 틀려도 잠금) 형식 오류는 세지 않습니다.
++ 이메일 아이디·비밀번호·비밀번호 확인·닉네임으로 가입하고, 회원가입과 로그인 모두 **화면(JS)과 서버(Java)** 에서 입력값을 검증합니다.
++ 세션 기반 폼 로그인을 사용하며, 로그인 후에는 처음 요청했던 화면으로 돌아갑니다.
 + 로그인하면 우측 상단에 **닉네임 메뉴**가 생기고, 그 안에서 다크/라이트 모드 전환과 로그아웃을 할 수 있습니다.
 + 메모·요약·LLM 설정은 모두 로그인한 회원 기준으로 처리되며, 요약은 **메모 작성자의 LLM 서버**로 실행됩니다.
 
@@ -55,35 +53,14 @@
 + 메모 저장·내용 수정 시 로컬 LLM 을 자동 호출하여 **요약(3~5문장)** 과 **할 일 목록**을 추출합니다.
 + 두 런타임 모두 JSON 스키마 기반 구조화 출력(Ollama `format`, LM Studio `response_format`)으로 `{"summary", "todos"}` 형식을 강제합니다.
 + 모델이 설명 문장·코드 블록·`<think>` 블록을 섞어 답해도 JSON 부분만 추출하고, 할 일의 공백·중복을 정리합니다.
-+ 작은 모델이 예시를 결과에 옮겨 적지 않도록 프롬프트에는 구체적인 예시 값 없이 형식만 적고, 메모에 없는 담당자·기한이 붙은 할 일은 버립니다.
 + 연결 실패·응답 시간 초과·서버 오류를 원인을 알 수 있는 문장으로 저장하고, **다시 시도** 버튼으로 재요약할 수 있습니다.
 
 ### 4) LLM 설정 (Tailscale IP 입력)
 + 런타임(Ollama / LM Studio), 서버 IP, 포트, API Key(선택)를 입력하고 **연결 테스트**로 서버의 모델 목록을 불러와 선택합니다.
-+ LLM 설정은 회원마다 따로 저장되고, API Key 는 **AES-256-GCM 으로 암호화**해 DB 에 저장합니다.
-+ 서버가 입력한 주소로 직접 요청하므로 **IP 숫자 주소만** 허용하고, 기본값은 **Tailscale 대역만** 허용합니다. 거부 사유에 맞는 안내 문구를 보여줍니다.
-+ 가정·학교의 PC 는 공유기 뒤의 사설 IP 를 쓰므로, LLM PC 가 서버와 다른 네트워크에 있으면 사설 IP·공인 IP 로는 연결할 수 없습니다. 그래서 설정 화면에 **Tailscale 연결 가이드**(설치 → LLM PC 를 운영자에게 공유 → 서버 열기 → Tailscale IP 입력 → 연결 테스트)를 보여주고, 운영자 이메일(`llm.guard.share-email`)을 설정하면 가이드에 표시합니다.
-
-| LLM PC 위치 | 연결 방법 |
-|---|---|
-| 서버와 같은 PC · 같은 공유기 | Tailscale IP (서버와 같은 LAN 만 쓴다면 `llm.guard.allowed-networks: []` 로 사설 IP 허용 가능) |
-| 다른 집 · 학교 · 회사 | Tailscale IP — 사설 IP 는 밖에서 닿지 않고, 공인 IP 는 공유기 주소라 포트포워딩 없이는 닿지 않음 |
-
-| 입력 | 결과 |
-|---|---|
-| Tailscale `100.64~127.x` · `fd7a:115c:a1e0::/48` | ✅ 허용 |
-| `10.x` · `172.16~31.x` · `192.168.x` · IPv6 ULA `fc00::/7` | ❌ 기본 거부 — Tailscale 연결 가이드 안내 (`allowed-networks: []` 설정 시 허용) |
-| `localhost` · `*.localhost` · `host.docker.internal` · `127.x` · `0.0.0.0` · `::1` | ❌ 루프백 — Tailscale 연결 가이드 안내 |
-| `169.254.x`(클라우드 메타데이터) · 멀티캐스트 · 예약·문서용 대역 · `fe80::` | ❌ 차단 대역 |
-| 공인 IP · 도메인 · 비표준 표기(`127.1`, `2130706433`, `010.0.0.1`) · DB 서버 주소 | ❌ 거부 |
-| 허용 포트(기본 `1234`, `11434`) 밖의 포트 | ❌ 거부 — 허용 포트 안내 |
-
-+ IPv6 안에 IPv4 가 들어간 주소(`::ffff:127.0.0.1`, 6to4)는 안쪽 IPv4 기준으로 판단하고, 저장할 때와 **호출 직전 모두** 검사합니다.
++ LLM 설정은 회원마다 따로 저장되며, API Key 는 암호화해 저장합니다.
++ LLM PC 가 서버와 다른 네트워크(다른 집·학교 등)에 있어도 연결할 수 있도록 **Tailscale IP** 로 연결하며, 설정 화면에 **Tailscale 연결 가이드**(설치 → LLM PC 공유 → 서버 열기 → Tailscale IP 입력 → 연결 테스트)를 보여줍니다.
 + 연결 테스트는 소요 시간과 모델 목록을 보여주며, 임베딩 등 채팅에 쓸 수 없는 모델은 목록에서 뺍니다.
-+ 연결 테스트와 서버 주소 변경은 회원마다 **1분에 10회**까지만 할 수 있습니다. (내부망의 열린 포트를 하나씩 확인하는 것 방지)
-+ **다른 회원이 이미 등록한 LLM 서버**(IP·포트)는 그 서버의 인증 토큰을 알아야 등록할 수 있습니다. 토큰 없이 요청해 서버가 인증을 요구하는지, 입력한 토큰으로 요청해 성공하는지 확인하며, 인증이 꺼진 서버는 아무 토큰이나 통과하므로 등록할 수 없습니다. (IP 만 알면 남의 GPU 를 쓰는 것 방지)
-+ Tailscale 주소에 연결하지 못하면 "LLM PC 의 Tailscale·LLM 서버가 켜져 있는지, 운영자에게 공유하고 수락됐는지"를 함께 안내합니다.
-+ 설정을 저장하면 그동안 요약에 실패했던 메모를 자동으로 다시 요약합니다. 설정 전에는 헤더와 목록에 안내가 표시됩니다.
++ 연결에 실패하면 확인할 항목을 안내하고, 설정을 저장하면 그동안 요약에 실패했던 메모를 자동으로 다시 요약합니다. 설정 전에는 헤더와 목록에 안내가 표시됩니다.
 
 ### 5) 메모 / 요약 조회
 + 최신순 카드 목록, 제목·본문 키워드 검색(대소문자 무시), 5개 단위 페이지네이션.
@@ -99,14 +76,11 @@
 | 규칙 | 처리 |
 |---|---|
 | 요약 시작 시점 | 저장/수정 트랜잭션 **커밋 이후** (커밋 전 메모를 조회하는 문제 방지) |
-| 동시 실행 수 | **LLM 서버(`IP:포트`)마다** 1개(GPU 1장 기준) — 같은 서버의 요약은 서버별 대기열(100건)에서 순서대로, **다른 서버는 동시에** 처리(전체 최대 8개) |
-| 느린 서버 | 한 회원의 서버가 느리거나 꺼져 있어도 다른 서버를 쓰는 회원의 요약은 기다리지 않음 (측정: 15초 서버 뒤에 저장한 1초 서버 요약 16.3초 → 1.8초) |
-| 회원당 동시 실행 | 회원 한 명은 동시에 **1건**만 실행 — 서버 주소를 바꿔 가며 여러 서버에 동시에 요청을 걸어 두는 것을 막고, 이미 실행 중인 회원의 다음 요약이 기다리는 동안 다른 회원의 요약이 먼저 실행됨 |
-| 응답 없는 서버 | 연결 실패·시간 초과가 **연속 3번**이면 그 서버를 5분 쉬게 함 — 쉬는 동안은 서버에 요청하지 않고 바로 실패 처리(스레드 미점유). 쉬는 시간이 끝나면 1건만 시험해 실패하면 **2배(5분→10분→…최대 1시간)**, 성공하면 정상 복귀. LLM 설정을 저장하면 쉬는 중이어도 바로 1건 시험. 401·500처럼 서버가 응답한 오류는 세지 않음 |
-| 대기열 초과 | 해당 메모를 **요약 실패**로 기록 (재시도 가능), 다른 서버의 대기열은 영향 없음 |
+| 처리 방식 | LLM 서버별로 대기열을 나눠, 한 회원의 서버가 느리거나 꺼져 있어도 다른 서버를 쓰는 회원의 요약은 기다리지 않음 |
+| 대기열 초과 | 해당 메모를 **요약 실패**로 기록 (재시도 가능) |
 | 요약 중 수정·삭제 | `revision` 이 달라진 오래된 결과는 버리고 새 내용으로 다시 요약 |
 | 중복 요청 | 이미 요약 중(대기/요약 중)인 메모의 재요약 요청은 무시 |
-| LLM 미설정 | "LLM 설정에서 로컬 IP 를 입력" 안내와 함께 실패 처리, 설정 저장 시 자동 재요약 |
+| LLM 미설정 | LLM 설정 안내와 함께 실패 처리, 설정 저장 시 자동 재요약 |
 | 서버 재시작 | 끝나지 않은(대기/요약 중) 요약을 기동 시 자동으로 다시 요청 |
 
 ## 🖼️ 화면 구성
@@ -116,7 +90,7 @@
 <img width="700" alt="로그인" src="img/로그인.png" />
 
 - 메인 담당자 : 손수호
-- 주요 개발 기능 : 이메일·비밀번호(영문·숫자·특수문자)·비밀번호 확인·닉네임 정규식 검증(화면·서버), 가입 후 이메일이 채워진 로그인 화면으로 이동, 로그인 실패 원인별 안내
+- 주요 개발 기능 : 회원가입·로그인 입력 검증(화면·서버), 가입 후 이메일이 채워진 로그인 화면으로 이동, 로그인 실패 안내
 
 ---
 
@@ -159,7 +133,7 @@
 <img width="700" alt="LLM 미설정 안내" src="img/LLM미설정안내.png" />
 
 - 메인 담당자 : 손수호
-- 주요 개발 기능 : 런타임 선택(기본 포트 자동 변경), Tailscale IP 검증과 연결 가이드, 연결 테스트 및 모델 목록 선택, API Key 저장·유지·삭제, 미설정 안내 배너
+- 주요 개발 기능 : 런타임 선택(기본 포트 자동 변경), Tailscale 연결 가이드, 연결 테스트 및 모델 목록 선택, API Key 저장·유지·삭제, 미설정 안내 배너
 
 ---
 
@@ -172,7 +146,6 @@
 
 ## 🧱 계층 구조
 
-+ 컨트롤러는 `@LoginUserId` 로 로그인한 회원 ID 를 받아 서비스에 넘기고, 서비스·Repository 는 모든 조회에 작성자 조건을 겁니다.
 + 화면 컨트롤러와 API 컨트롤러는 같은 서비스를 공유하며, 컨트롤러는 Repository 나 LLM 을 직접 호출하지 않습니다.
 + 엔티티(model)는 데이터만 가지고, 값 변경 규칙(수정 여부 판단, revision 증가, 요약 상태 변경)은 모두 service 가 담당합니다.
 
@@ -181,12 +154,12 @@
 ```mermaid
 flowchart TB
     P["화면 · REST API 요청"]
-    SEC["<b>security</b><br/>폼 로그인 · 형식 검증<br/>LoginAuthenticationProvider<br/>CustomAuthFailureHandler"]
+    SEC["<b>security</b><br/>폼 로그인"]
     C["<b>Controller</b><br/>view: Auth · MemoPage · SettingPage<br/>api: MemoApi · SettingApi"]
     S["<b>Service</b><br/>UserService<br/>MemoService<br/>MemoSummaryService<br/>LlmSettingService"]
     R["<b>Repository</b><br/>UserRepository<br/>MemoRepository<br/>LlmSettingRepository"]
     DB[("PostgreSQL")]
-    X["<b>common</b><br/>예외 처리 · 입력 검증<br/>API Key 암호화"]
+    X["<b>common</b><br/>예외 처리 · 입력 검증"]
 
     P --> SEC --> C --> S --> R --> DB
     X -.-> C
@@ -199,7 +172,7 @@ flowchart TB
 ```mermaid
 flowchart TB
     A["MemoService<br/>메모 저장 · 수정"] -->|"커밋 후 이벤트"| B["MemoSummaryEventListener"]
-    B -->|"작성자의 서버 주소로 대기열 선택"| C["LlmServerQueue<br/>서버별 동시 1 · 대기 100<br/>서로 다른 서버는 동시 처리"]
+    B -->|"작성자의 서버 주소로 대기열 선택"| C["LlmServerQueue<br/>LLM 서버별 대기열"]
     C --> D["MemoSummaryService<br/>요약 실행 · 결과 반영"]
     D -->|"작성자의 접속 정보 조회"| E["LlmSettingService"]
     D --> F["LlmClientFactory"]
@@ -237,7 +210,7 @@ erDiagram
     USERS {
         bigint user_id PK
         varchar username UK "이메일"
-        varchar password "BCrypt 해시"
+        varchar password "해시"
         varchar nickname
         varchar role "USER"
         timestamp created_at
@@ -268,7 +241,7 @@ erDiagram
         varchar host
         int port
         varchar model
-        varchar api_key "AES-256-GCM 암호문"
+        varchar api_key "암호화 저장"
         timestamp updated_at
     }
 ```
@@ -278,7 +251,7 @@ erDiagram
 |---|---|---|
 | user_id | BIGSERIAL | PK |
 | username | VARCHAR(100) | 로그인 아이디 — 이메일 (UNIQUE, 소문자로 저장) |
-| password | VARCHAR(100) | BCrypt 해시 (`{bcrypt}$2a$10$…`) |
+| password | VARCHAR(100) | 비밀번호 해시 |
 | nickname | VARCHAR(20) | 닉네임 (헤더 표시) |
 | role | VARCHAR(20) | 역할 (`USER` → `ROLE_USER`) |
 | created_at | TIMESTAMP | 가입 시각 |
@@ -314,51 +287,21 @@ erDiagram
 |---|---|---|
 | user_id | BIGINT | PK, 회원 FK (ON DELETE CASCADE) |
 | provider | VARCHAR(20) | `OLLAMA` / `LMSTUDIO` (CHECK 제약) |
-| host | VARCHAR(45) | 로컬 전용 IP (사설망·Tailscale 대역, IPv6 포함) |
-| port | INTEGER | 포트 (1~65535, CHECK 제약) |
+| host | VARCHAR(45) | LLM 서버 IP (Tailscale) |
+| port | INTEGER | 포트 |
 | model | VARCHAR(100) | 요약에 사용할 모델명 |
-| api_key | VARCHAR(400) | 인증 토큰 (선택) — `v1:` + AES-256-GCM 암호문으로 저장, 화면·API 응답·로그에 노출하지 않음 |
+| api_key | VARCHAR(400) | 인증 토큰 (선택) — 암호화해서 저장 |
 | updated_at | TIMESTAMP | 마지막 저장 시각 |
 
 + 요약 결과가 반영될 때 기존 할 일은 모두 지우고 새 목록으로 교체합니다(`orphanRemoval`).
 + 회원별 목록 최신순 정렬(`user_id, created_at DESC, memo_id DESC`)과 미완료 요약 조회(`summary_status`)에 인덱스를 사용합니다.
-+ 운영 환경은 `ddl-auto: validate` 이므로 최초 배포 전에 [`db/schema.sql`](src/main/resources/db/schema.sql) 로 테이블을 생성합니다. 회원 기능 이전 버전 DB 는 `DROP TABLE IF EXISTS memo_todo, memo, llm_setting, member, users;` 후 스크립트를 다시 실행합니다. (구조가 바뀜)
-
-## 🔒 보안
-
-| 위협 | 대응 |
-|---|---|
-| 인증 | 세션 기반 폼 로그인. 로그인·회원가입·정적 리소스 외 모든 요청은 로그인 필요 (화면은 로그인 화면으로, API 는 401 JSON) |
-| 비밀번호 유출 | BCrypt 해시(`{bcrypt}` 위임 인코더)로만 저장, 세션의 로그인 정보에서도 비밀번호 해시 제거 |
-| 로그인 입력 | 이메일·비밀번호 형식을 회원 조회 전에 검사(`LoginAuthenticationProvider`), 가입되지 않은 이메일과 틀린 비밀번호는 같은 문구로 안내(`CustomAuthFailureHandler`), 실패 문구는 URL 이 아니라 세션으로 한 번만 전달 |
-| 비밀번호 무차별 대입 | 비밀번호 5회 실패(같은 IP·아이디) 또는 20회 실패(같은 IP) 시 5분 잠금(`LoginAttemptService`), 잠긴 동안은 맞는 비밀번호도 거부. 다른 IP 는 영향 없음(남이 일부러 틀려 계정을 잠그는 것 방지), 로그인 성공으로 IP 실패 횟수를 초기화할 수 없음 |
-| 다른 회원 데이터 접근 (IDOR) | 모든 메모·요약·LLM 설정 조회에 작성자 조건, 다른 회원의 메모는 존재 여부도 드러나지 않도록 404 |
-| API Key 유출 | AES-256-GCM 으로 암호화해 저장(값마다 무작위 IV, 변조 검출). 키는 환경변수 `API_KEY_ENCRYPTION_KEY` 로 DB 와 분리 보관, 키가 없으면 기동 중단 |
-| XSS | 모든 출력은 Thymeleaf `th:text`(자동 이스케이프), JS 는 `textContent` 사용. CSP 로 인라인·외부 스크립트 실행 차단 |
-| SQL Injection | Spring Data 파라미터 바인딩만 사용(문자열로 SQL 조립 없음), 검색 키워드의 `\` `%` `_` 이스케이프 |
-| CSRF | Spring Security 가 모든 변경 요청(POST/PUT/DELETE)에 CSRF 토큰 검증. 폼은 자동 삽입, JS 는 `X-CSRF-TOKEN` 헤더 |
-| SSRF | LLM 서버 주소를 사설망·Tailscale 대역 IP 로 제한(`LlmHostGuard`) — localhost·루프백·`169.254.x`·공인 IP·도메인(DNS rebinding)·DB 주소 거부, 저장 시·호출 직전 재검사, 리다이렉트 미추적, 프록시 미사용 |
-| LLM 무단 사용 | 연결 가이드에서 인증 토큰을 필수 단계로 안내, 다른 회원이 이미 등록한 IP·포트는 인증이 켜져 있고 그 서버의 토큰이 맞아야 등록(`LlmSettingService`), 토큰은 회원마다 암호화 저장 |
-| 내부망 탐색 | 연결 결과로 서버 쪽 내부망(공유기·NAS·tailnet 기기)의 열린 포트를 확인하지 못하도록 허용 포트(기본 1234·11434)만 허용, 허용 대역(`llm.guard.allowed-networks`, 기본 Tailscale 대역만 — 서버 쪽 집·회사 LAN 은 입력 불가), 연결 테스트·주소 변경 회원당 1분 10회(`LlmProbeLimiter`) |
-| 프롬프트 인젝션 | 메모를 `<memo>` 태그로 감싸 데이터로만 다루도록 지시, 메모 안의 `<memo>` 태그 제거, 응답은 JSON 스키마(`summary`, `todos`)로 고정 |
-| 느린 응답으로 처리 붙잡기 | 회원당 동시 요약 1건, 서버별 대기열, 연속 응답 없는 서버 휴식(`LlmServerBreaker`, 쉬는 시간 2배씩 증가) — 응답 없는 서버 1대가 붙잡는 시간이 첫 3건(6분) 이후 5분→10분→20분… 간격의 1건(2분)으로 줄어듦. 공유 기기는 운영자가 직접 수락해야 연결되므로 계정을 늘려도 수락한 만큼만 영향 |
-| 자원 고갈 | LLM 응답 본문 1MB 제한, 전체 제한 시간(요약 120초·모델 목록 15초)으로 조금씩 보내며 버티는 서버도 차단 |
-| 정보 노출 | LLM 서버의 오류 응답 본문은 노출하지 않고 상태 코드별 안내(401·403·400·404·429·3xx)만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
-| 클릭재킹 · MIME 스니핑 | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` |
-| 세션 | 로그인 시 세션 ID 재발급(세션 고정 방지), 로그아웃은 POST(CSRF 토큰 필요)로만 처리, 쿠키로만 추적(URL 에 세션 ID 미노출), `HttpOnly`, `SameSite=Lax` |
-
-+ 회원이 공유한 LLM PC 는 운영자 tailnet 에서 **격리(quarantine)** 상태라 운영자 기기로 먼저 연결할 수 없고, 운영자 쪽 기기 목록도 보지 못합니다. 서버는 LLM 응답을 1MB·제한 시간·JSON 스키마·길이 제한으로 검사하고 화면에는 이스케이프해 출력합니다.
-+ 기본값은 Tailscale 대역만 허용하므로 서버가 속한 집·회사 LAN 의 장비는 LLM 서버 주소로 입력할 수 없습니다. tailnet 안의 다른 기기까지 막으려면 Tailscale ACL 로 서버 노드가 LLM 포트(1234·11434)에만 접근하도록 제한합니다.
-+ 리버스 프록시(Nginx·Cloudflare Tunnel·Tailscale Serve 등) 뒤에서 실행하면 `server.forward-headers-strategy: native` 를 설정해야 로그인 시도 제한이 실제 사용자 IP 기준으로 동작합니다. 이때 `X-Forwarded-For` 위조를 막으려면 `server.address: 127.0.0.1` 로 프록시만 접속할 수 있게 합니다.
-+ HTTPS 로 서비스할 때는 `server.servlet.session.cookie.secure: true` 로 세션 쿠키를 HTTPS 요청에만 보냅니다. (세 설정 모두 환경변수로 바꿀 수 있고, 기본값은 HTTP 직접 접속 기준)
-+ API Key 는 LLM 서버에 원문으로 보내야 하므로 해싱(복원 불가)이 아니라 암호화(복원 가능)를 사용합니다. 비밀번호는 원문이 필요 없으므로 해싱합니다.
-+ `API_KEY_ENCRYPTION_KEY` 를 바꾸면 기존에 저장한 API Key 는 복호화할 수 없어 "저장된 키 없음"으로 표시되며, 다시 입력하면 새 키로 암호화됩니다.
++ 운영 환경은 `ddl-auto: validate` 이므로 최초 배포 전에 [`db/schema.sql`](src/main/resources/db/schema.sql) 로 테이블을 생성합니다.
 
 ## 📁 디렉토리 구조
 
 ```text
 📦 coding-test-project/
-├── ⚙️ pom.xml                          # Spring Boot 4.0.6 / Java 21 의존성
+├── ⚙️ pom.xml                          # 의존성
 ├── 🔧 mvnw, mvnw.cmd                   # Maven Wrapper
 ├── 🤖 .github/workflows/
 │   ├── ci.yml                          # dev/master PR 빌드·테스트
@@ -370,25 +313,25 @@ erDiagram
     │   ├── ⚙️ common/
     │   │   ├── advice/                      # LoginUserModelAdvice(닉네임), LlmSettingModelAdvice(LLM 설정 여부)
     │   │   ├── config/                      # AsyncConfig(LLM 실행기)
-    │   │   ├── crypto/                      # SecretCipher(AES-256-GCM), EncryptedStringConverter(JPA 컬럼 암호화)
+    │   │   ├── crypto/                      # 민감 정보 암호화
     │   │   ├── exception/                   # NotFoundException, DuplicateUsernameException, TooManyRequestsException
     │   │   ├── handler/                     # ApiExceptionHandler, GlobalExceptionHandler
-    │   │   ├── util/                        # IpAddressUtil(IP 해석·분류), PageRangeUtil, SummaryStatusUtil, TimeUtil
+    │   │   ├── util/                        # IpAddressUtil, PageRangeUtil, SummaryStatusUtil, TimeUtil
     │   │   └── validation/
-    │   │       ├── AuthPattern.java         # 이메일·비밀번호 정규식 (회원가입·로그인 공용)
+    │   │       ├── AuthPattern.java         # 회원가입·로그인 입력 규칙
     │   │       ├── annotation/              # @ValidUsername, @ValidPassword, @LocalIp, @LlmPort
     │   │       └── validator/               # UsernameValidator, PasswordValidator, LocalIpValidator, LlmPortValidator
     │   ├── 🔐 security/
-    │   │   ├── config/                      # SecurityConfig(폼 로그인·CSRF·보안 헤더), PasswordConfig(BCrypt), LoginAttemptConfig/Properties
+    │   │   ├── config/                      # SecurityConfig, PasswordConfig
     │   │   ├── core/                        # CustomUserPrincipal, @LoginUserId
     │   │   ├── userdetails/                 # CustomUserDetailService
-    │   │   ├── provider/                    # LoginAuthenticationProvider — 잠금·형식 검사 후 인증, 실패 기록
-    │   │   ├── attempt/                     # LoginAttemptService — 로그인 실패 횟수·잠금
-    │   │   ├── handler/                     # CustomAuthFailureHandler, SecurityAccessDeniedHandler(403), SecurityAuthenticationEntryPoint(401)
+    │   │   ├── provider/                    # LoginAuthenticationProvider
+    │   │   ├── attempt/                     # LoginAttemptService
+    │   │   ├── handler/                     # CustomAuthFailureHandler, SecurityAccessDeniedHandler, SecurityAuthenticationEntryPoint
     │   │   └── exception/                   # InvalidLoginFormatException, LoginLockedException
     │   ├── 🎮 controller/
     │   │   ├── view/                        # AuthController, MemoPageController, SettingPageController, HomeController, AccessDeniedController
-    │   │   └── api/                         # MemoApiController(/api/memos), SettingApiController(/api/settings/llm)
+    │   │   └── api/                         # MemoApiController, SettingApiController
     │   ├── 🧩 dto/
     │   │   ├── auth/                        # SignupRequest
     │   │   ├── memo/                        # MemoRequest, MemoResponse, MemoListItem, MemoListRow, MemoRevision
@@ -397,28 +340,28 @@ erDiagram
     │   │   └── common/                      # ErrorResponse, PageResponse
     │   ├── 📣 event/                        # MemoSummaryRequestedEvent, MemoSummaryEventListener
     │   ├── 🤖 llm/
-    │   │   ├── client/                      # LlmClient(인터페이스), AbstractLlmClient(공통 흐름·크기/시간 제한·오류 변환), LlmClientFactory
-    │   │   ├── guard/                       # LlmHostGuard(주소·포트 검사, SSRF 방지), LlmGuardProperties, IpRange(CIDR), LlmProbeLimiter(연결 시도 제한)
-    │   │   ├── queue/                       # LlmServerQueue(서버별 대기열·회원당 동시 1건), LlmServerBreaker(응답 없는 서버 휴식)
+    │   │   ├── client/                      # LlmClient(인터페이스), AbstractLlmClient(공통 흐름·오류 변환), LlmClientFactory
+    │   │   ├── guard/                       # LLM 서버 주소 검증
+    │   │   ├── queue/                       # LlmServerQueue — LLM 서버별 요약 대기열
     │   │   ├── provider/
     │   │   │   ├── ollama/                  # OllamaLlmClient, 요청/응답(OllamaChatRequest, OllamaTagsResponse …)
     │   │   │   └── lmstudio/                # LmStudioLlmClient, 요청/응답(LmStudioChatRequest, LmStudioModelsResponse …)
-    │   │   ├── config/                      # LlmConfig, LlmProperties(타임아웃·응답 크기·서버별/전체 동시 실행 수)
-    │   │   ├── prompt/                      # SummaryPrompt — 프롬프트(예시 값 없음, <memo> 태그), 응답 JSON 스키마
-    │   │   ├── parser/                      # SummaryResultParser — LLM 응답 JSON 추출·정리, 원문에 없는 담당자 제거
+    │   │   ├── config/                      # LlmConfig, LlmProperties
+    │   │   ├── prompt/                      # SummaryPrompt — 프롬프트, 응답 JSON 스키마
+    │   │   ├── parser/                      # SummaryResultParser — LLM 응답 JSON 추출·정리
     │   │   ├── dto/                         # SummaryResult, ChatMessage, LlmConnection
-    │   │   └── exception/                   # LlmException, LlmAuthException(401·403), LlmUnavailableException(연결 실패·시간 초과)
+    │   │   └── exception/                   # LlmException 계열
     │   ├── 🧾 model/
     │   │   ├── User.java, Memo.java, MemoTodo.java, LlmSetting.java   # JPA 엔티티 (데이터만 보관)
     │   │   └── enums/                       # UserRole, SummaryStatus, LlmProvider, IpCategory
     │   ├── 💾 repository/                   # UserRepository, MemoRepository, LlmSettingRepository
     │   └── 🔄 service/
-    │       ├── UserService.java             # 회원가입 (비밀번호 확인·이메일 중복 검사, BCrypt 해시)
+    │       ├── UserService.java             # 회원가입
     │       ├── MemoService.java             # 메모 CRUD, 검색, 요약 요청
     │       ├── MemoSummaryService.java      # 비동기 요약 실행, 결과 반영, 재요약
     │       └── LlmSettingService.java       # LLM 접속 설정 저장, 연결 테스트
     ├── main/resources/
-    │   ├── application.yml                  # 공통 설정 (DB 환경변수, LLM 호출·주소 제한 설정, 로그인 시도 제한, 압축·캐시·세션)
+    │   ├── application.yml                  # 공통 설정
     │   ├── application-dev.yml / -prod.yml  # ddl-auto update / validate
     │   ├── db/schema.sql                    # PostgreSQL 스키마
     │   ├── templates/
@@ -431,20 +374,19 @@ erDiagram
     │       ├── css/common/, css/pages/      # 디자인 토큰·공통 / 화면별 style
     │       └── js/                          # common, theme-init, auth(로그인·회원가입 검증), memo-form, memo-detail(요약 폴링), settings
     └── test/java/io/dev/coding_test/
-        ├── config/                          # 배포 환경변수 기본값 테스트
-        ├── common/                          # 이메일·비밀번호 정규식, API Key 암호화, IP 해석·분류 테스트
-        ├── security/                        # CSRF·보안 헤더, 로그인 시도 제한 테스트
-        ├── controller/                      # view·api MockMvc, 회원가입·로그인 검증·잠금, 회원 간 데이터 분리 테스트
+        ├── config/                          # 설정 테스트
+        ├── common/                          # 공통 유틸·검증 테스트
+        ├── security/                        # 보안 설정 테스트
+        ├── controller/                      # view·api MockMvc, 회원가입·로그인, 회원별 데이터 테스트
         ├── service/                         # 메모 CRUD, 비동기 요약·경합, LLM 설정 테스트
         ├── repository/                      # 경로별 SQL 수 검증
-        ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소·포트·대역 검사, 연결 시도 제한, 서버별 대기열·서버 휴식, 프롬프트, 파서, 팩토리 테스트
+        ├── llm/                             # Ollama/LM Studio 클라이언트, 서버별 대기열, 프롬프트, 파서 테스트
         └── support/                         # FakeLlmClient(Factory), TestUsers·TestLoginContext(테스트 로그인), TestMockMvcCustomizer, MutableClock
 ```
 
 ## 🔌 API
 
-+ 모든 API 는 로그인한 세션이 필요하며(없으면 401), 로그인한 회원의 데이터만 다룹니다. 다른 회원의 메모는 404 입니다.
-+ 변경 요청(POST/PUT/DELETE)은 CSRF 토큰(`X-CSRF-TOKEN` 헤더)이 필요합니다. 토큰은 화면의 `<meta name="_csrf">` 에 있습니다.
++ 모든 API 는 로그인한 세션이 필요하며, 로그인한 회원의 데이터만 다룹니다.
 
 | Method | URL | 설명 |
 |---|---|---|
@@ -459,9 +401,9 @@ erDiagram
 | `GET` | `/api/memos/{id}/summary` | 요약 결과 조회 |
 | `GET` | `/api/memos/{id}/summary/status` | 요약 상태만 조회 (폴링용) |
 | `POST` | `/api/memos/{id}/summary` | 재요약 요청 (202) |
-| `GET` | `/api/settings/llm` | LLM 접속 설정 조회 (API Key 값 제외) |
-| `PUT` | `/api/settings/llm` | LLM 접속 설정 저장 (실패한 요약 자동 재요청) |
-| `POST` | `/api/settings/llm/test` | 연결 테스트 — `{ok, latencyMs, models, message}` (연결 실패도 200 + `ok=false`) |
+| `GET` | `/api/settings/llm` | LLM 접속 설정 조회 |
+| `PUT` | `/api/settings/llm` | LLM 접속 설정 저장 |
+| `POST` | `/api/settings/llm/test` | 연결 테스트 |
 
 ## 🌿 브랜치 전략
 
