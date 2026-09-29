@@ -7,6 +7,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -19,7 +21,7 @@ class LlmHostGuardTest {
     @ValueSource(strings = {"192.168.0.10", "10.1.2.3", "172.20.0.1", "100.66.180.73", "fd7a:115c:a1e0::1", " 192.168.0.10 "})
     void 사설망과_Tailscale_주소는_허용한다(String host) {
         assertThat(guard.rejectReason(host)).isEmpty();
-        assertThatCode(() -> guard.check(host)).doesNotThrowAnyException();
+        assertThatCode(() -> guard.check(host, 11434)).doesNotThrowAnyException();
     }
 
     @ParameterizedTest
@@ -67,7 +69,7 @@ class LlmHostGuardTest {
         };
 
         assertThat(guard.rejectReason(host)).hasValue(expected);
-        assertThatThrownBy(() -> guard.check(host)).isInstanceOf(LlmException.class).hasMessage(expected);
+        assertThatThrownBy(() -> guard.check(host, 11434)).isInstanceOf(LlmException.class).hasMessage(expected);
     }
 
     @Test
@@ -88,5 +90,54 @@ class LlmHostGuardTest {
     void 주소_범주를_알려준다() {
         assertThat(guard.categoryOf("100.66.180.73")).hasValue(IpCategory.PRIVATE);
         assertThat(guard.categoryOf("evil.example.com")).isEmpty();
+    }
+
+    // ===================== 허용 대역·포트 (llm.guard) =====================
+
+    private final LlmHostGuard tailscaleOnly = new LlmHostGuard("10.0.0.5",
+            new LlmGuardProperties(List.of("100.64.0.0/10", "192.168.0.10"), List.of(1234, 11434), 0, null));
+
+    @ParameterizedTest
+    @ValueSource(strings = {"100.66.180.73", "100.127.255.254", "192.168.0.10"})
+    void 허용_대역을_설정하면_그_대역의_주소만_허용한다(String host) {
+        assertThat(tailscaleOnly.rejectReason(host)).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"192.168.0.1", "192.168.0.11", "10.0.0.1", "172.16.0.1", "fd7a:115c:a1e0::1"})
+    void 허용_대역_밖의_사설망_주소는_허용_대역을_안내하며_거부한다(String host) {
+        assertThat(tailscaleOnly.rejectReason(host))
+                .contains(LlmHostGuard.NETWORK_MESSAGE_PREFIX + "100.64.0.0/10, 192.168.0.10/32");
+    }
+
+    @Test
+    void 허용_대역을_설정해도_루프백_공인_IP는_원래_사유로_거부한다() {
+        assertThat(tailscaleOnly.rejectReason("127.0.0.1")).contains(LlmHostGuard.LOCALHOST_MESSAGE);
+        assertThat(tailscaleOnly.rejectReason("8.8.8.8")).contains(LlmHostGuard.PUBLIC_MESSAGE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {80, 22, 5432, 8080, 443})
+    void 허용_포트가_아니면_허용_포트를_안내하며_거부한다(int port) {
+        assertThat(tailscaleOnly.rejectPortReason(port)).contains(LlmHostGuard.PORT_MESSAGE_PREFIX + "1234, 11434");
+        assertThatThrownBy(() -> tailscaleOnly.check("100.66.180.73", port)).isInstanceOf(LlmException.class)
+                .hasMessage(LlmHostGuard.PORT_MESSAGE_PREFIX + "1234, 11434");
+    }
+
+    @Test
+    void 허용_포트와_대역_안의_주소는_통과한다() {
+        assertThatCode(() -> tailscaleOnly.check("100.66.180.73", 1234)).doesNotThrowAnyException();
+        assertThat(tailscaleOnly.rejectPortReason(11434)).isEmpty();
+    }
+
+    @Test
+    void 허용_포트를_비우면_모든_포트를_허용한다() {
+        assertThat(guard.rejectPortReason(8080)).isEmpty();
+    }
+
+    @Test
+    void 허용_대역_형식이_틀리면_기동을_중단한다() {
+        assertThatThrownBy(() -> new LlmHostGuard("", new LlmGuardProperties(List.of("100.64.0.0/33"), List.of(), 0, null)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
