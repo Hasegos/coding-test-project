@@ -12,6 +12,8 @@ import io.dev.coding_test.llm.client.LlmClientFactory;
 import io.dev.coding_test.llm.dto.LlmConnection;
 import io.dev.coding_test.llm.dto.SummaryResult;
 import io.dev.coding_test.llm.exception.LlmException;
+import io.dev.coding_test.llm.exception.LlmUnavailableException;
+import io.dev.coding_test.llm.queue.LlmServerBreaker;
 import io.dev.coding_test.model.Memo;
 import io.dev.coding_test.model.MemoTodo;
 import io.dev.coding_test.model.enums.SummaryStatus;
@@ -24,6 +26,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +41,7 @@ import java.util.Optional;
  *         차례가 되면 {@link #summarize(Long, long)}를 실행한다.</li>
  *     <li>LLM 호출은 DB 커넥션을 잡지 않도록 트랜잭션 밖에서 수행하고, 결과 반영은 짧은 새 트랜잭션에서 처리한다.</li>
  *     <li>요약 중 메모가 수정·삭제되면 revision이 달라지므로 오래된 결과는 버린다.</li>
+ *     <li>서버가 연속으로 응답하지 않으면({@link LlmServerBreaker}) 잠시 쉬는 동안 요청하지 않고 바로 실패 처리한다.</li>
  * </ol>
  * <p>
  * 요약은 메모 작성자의 LLM 설정으로 실행하고, 조회·재요약은 로그인한 회원 자신의 메모만 다룬다.
@@ -55,17 +59,20 @@ public class MemoSummaryService {
     private final MemoRepository memoRepository;
     private final LlmSettingService llmSettingService;
     private final LlmClientFactory llmClientFactory;
+    private final LlmServerBreaker llmServerBreaker;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate newTransaction;
 
     public MemoSummaryService(MemoRepository memoRepository,
                               LlmSettingService llmSettingService,
                               LlmClientFactory llmClientFactory,
+                              LlmServerBreaker llmServerBreaker,
                               ApplicationEventPublisher eventPublisher,
                               PlatformTransactionManager transactionManager) {
         this.memoRepository = memoRepository;
         this.llmSettingService = llmSettingService;
         this.llmClientFactory = llmClientFactory;
+        this.llmServerBreaker = llmServerBreaker;
         this.eventPublisher = eventPublisher;
         // 커밋 후(AFTER_COMMIT) 콜백에서도 항상 독립된 트랜잭션으로 반영되도록 REQUIRES_NEW 사용
         this.newTransaction = new TransactionTemplate(transactionManager);
@@ -177,12 +184,26 @@ public class MemoSummaryService {
             return;
         }
 
+        // 연속으로 응답하지 않은 서버는 쉬는 동안 요청하지 않고 바로 실패 처리한다. (처리 스레드를 붙잡지 않음)
+        String serverKey = connection.get().host() + ":" + connection.get().port();
+        Optional<Duration> resting = llmServerBreaker.openFor(serverKey);
+        if (resting.isPresent()) {
+            log.warn("요약 실패(LLM 서버 휴식 중) - server: {}, memoId: {}", serverKey, memoId);
+            fail(memoId, revision, LlmServerBreaker.message(resting.get()));
+            return;
+        }
+
         // 저장된 주소도 호출 직전에 다시 검사하므로(LlmHostGuard) 클라이언트 생성 실패도 요약 실패로 기록한다.
         LlmClient llmClient;
         SummaryResult result;
         try {
             llmClient = llmClientFactory.getClient(connection.get());
             result = llmClient.summarize(snapshot.get().title(), snapshot.get().content());
+        } catch (LlmUnavailableException e) {
+            llmServerBreaker.recordFailure(serverKey);
+            log.warn("요약 실패 - memoId: {}, 사유: {}", memoId, e.getMessage());
+            fail(memoId, revision, e.getMessage());
+            return;
         } catch (LlmException e) {
             log.warn("요약 실패 - memoId: {}, 사유: {}", memoId, e.getMessage());
             fail(memoId, revision, e.getMessage());
@@ -193,6 +214,7 @@ public class MemoSummaryService {
             return;
         }
 
+        llmServerBreaker.recordSuccess(serverKey);
         newTransaction.executeWithoutResult(status ->
                 findCurrent(memoId, revision).ifPresentOrElse(
                         memo -> {
