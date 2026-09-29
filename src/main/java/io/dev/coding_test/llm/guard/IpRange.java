@@ -64,6 +64,16 @@ public record IpRange(InetAddress network, int prefix) {
         return (target[fullBytes] & mask) == (base[fullBytes] & mask);
     }
 
+    /**
+     * 다른 대역 전체가 이 대역 안에 들어가는지 확인한다.
+     *
+     * @param other 확인할 대역
+     * @return 포함되면 {@code true}
+     */
+    public boolean containsRange(IpRange other) {
+        return other.prefix >= prefix && contains(other.network);
+    }
+
     @Override
     public String toString() {
         return network.getHostAddress() + "/" + prefix;
