@@ -17,11 +17,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -211,9 +213,72 @@ class SettingApiControllerTest {
         mockMvc.perform(post("/api/settings/llm/test")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider": "OLLAMA", "host": "169.254.169.254", "port": 80}
+                                {"provider": "OLLAMA", "host": "169.254.169.254", "port": 11434}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("host"));
+    }
+
+    // ===================== 내부망 탐색 방지 (llm.guard) =====================
+
+    @Test
+    void 허용하지_않은_포트는_허용_포트를_안내하며_400으로_거부한다() throws Exception {
+        mockMvc.perform(put("/api/settings/llm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 8080, "model": "qwen2.5:7b"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("port"))
+                .andExpect(jsonPath("$.errors[0].message").value(LlmHostGuard.PORT_MESSAGE_PREFIX + "1234, 11434"));
+
+        mockMvc.perform(post("/api/settings/llm/test")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "OLLAMA", "host": "192.168.0.10", "port": 22}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("port"));
+    }
+
+    @Test
+    void 연결_테스트를_너무_자주_하면_연결하지_않고_안내한다() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            testConnection("192.168.0." + i).andExpect(jsonPath("$.ok").value(true));
+        }
+
+        testConnection("192.168.0.11")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.message").value(startsWith("LLM 서버 연결 시도가 너무 많아요.")));
+    }
+
+    @Test
+    void 서버_주소를_너무_자주_바꾸면_429로_거부하고_같은_주소_저장은_허용한다() throws Exception {
+        for (int i = 1; i <= 10; i++) {
+            saveSetting("192.168.0." + i).andExpect(status().isOk());
+        }
+
+        saveSetting("192.168.0.11")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.message").value(startsWith("LLM 서버 연결 시도가 너무 많아요.")));
+        saveSetting("192.168.0.10").andExpect(status().isOk());
+    }
+
+    private ResultActions testConnection(String host) throws Exception {
+        return mockMvc.perform(post("/api/settings/llm/test")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"provider": "OLLAMA", "host": "%s", "port": 11434}
+                        """.formatted(host)));
+    }
+
+    private ResultActions saveSetting(String host) throws Exception {
+        return mockMvc.perform(put("/api/settings/llm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"provider": "OLLAMA", "host": "%s", "port": 11434, "model": "qwen2.5:7b"}
+                        """.formatted(host)));
     }
 }
