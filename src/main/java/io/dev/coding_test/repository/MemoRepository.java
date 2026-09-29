@@ -106,9 +106,9 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
      * </p>
      *
      * @param statuses 조회할 요약 상태 목록
-     * @return 메모 ID·revision 목록
+     * @return 메모 ID·작성자 ID·revision 목록
      */
-    @Query("SELECT new io.dev.coding_test.dto.memo.MemoRevision(m.memoId, m.revision) FROM Memo m WHERE m.summaryStatus IN :statuses")
+    @Query("SELECT new io.dev.coding_test.dto.memo.MemoRevision(m.memoId, m.user.userId, m.revision) FROM Memo m WHERE m.summaryStatus IN :statuses")
     List<MemoRevision> findRevisionsBySummaryStatusIn(@Param("statuses") Collection<SummaryStatus> statuses);
 
     /**
@@ -116,10 +116,10 @@ public interface MemoRepository extends JpaRepository<Memo, Long> {
      *
      * @param userId 작성자 회원 ID
      * @param status 요약 상태
-     * @return 메모 ID·revision 목록
+     * @return 메모 ID·작성자 ID·revision 목록
      */
     @Query("""
-            SELECT new io.dev.coding_test.dto.memo.MemoRevision(m.memoId, m.revision) FROM Memo m
+            SELECT new io.dev.coding_test.dto.memo.MemoRevision(m.memoId, m.user.userId, m.revision) FROM Memo m
             WHERE m.user.userId = :userId AND m.summaryStatus = :status
             """)
     List<MemoRevision> findRevisions(@Param("userId") Long userId, @Param("status") SummaryStatus status);

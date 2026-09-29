@@ -16,8 +16,9 @@ import java.time.Duration;
  * @param readTimeout     요약 요청의 전체 제한 시간 (응답 본문을 다 받을 때까지, 로컬 모델은 수십 초 걸릴 수 있음)
  * @param modelsTimeout   모델 목록 조회(연결 테스트)의 전체 제한 시간
  * @param maxResponseSize 응답 본문 최대 크기, 초과하면 읽기를 중단한다
- * @param concurrency     동시에 처리할 요약 작업 수 (GPU 1장이면 1 권장)
- * @param queueCapacity   요약 대기열 크기, 초과 시 해당 요약은 실패 처리
+ * @param concurrency     LLM 서버 하나에 동시에 보낼 요약 수 (GPU 1장이면 1 권장)
+ * @param queueCapacity   LLM 서버 하나의 요약 대기열 크기, 초과 시 해당 요약은 실패 처리
+ * @param maxParallel     전체 동시 요약 수 (여러 회원의 LLM 서버를 동시에 처리하는 스레드 수)
  */
 @ConfigurationProperties(prefix = "llm")
 public record LlmProperties(double temperature,
@@ -26,7 +27,8 @@ public record LlmProperties(double temperature,
                             Duration modelsTimeout,
                             DataSize maxResponseSize,
                             int concurrency,
-                            int queueCapacity) {
+                            int queueCapacity,
+                            int maxParallel) {
 
     public LlmProperties {
         if (connectTimeout == null) connectTimeout = Duration.ofSeconds(5);
@@ -35,5 +37,6 @@ public record LlmProperties(double temperature,
         if (maxResponseSize == null) maxResponseSize = DataSize.ofMegabytes(1);
         if (concurrency < 1) concurrency = 1;
         if (queueCapacity < 1) queueCapacity = 100;
+        if (maxParallel < 1) maxParallel = 8;
     }
 }

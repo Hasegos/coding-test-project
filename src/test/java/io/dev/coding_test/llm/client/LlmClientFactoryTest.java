@@ -36,12 +36,12 @@ class LlmClientFactoryTest {
 
     private final SummaryResultParser parser = new SummaryResultParser(JsonMapper.builder().build());
     private final LlmClientFactory factory =
-            new LlmClientFactory(new LlmProperties(0.2, null, null, null, null, 1, 10), parser, new AllowAllHostGuard());
+            new LlmClientFactory(new LlmProperties(0.2, null, null, null, null, 1, 10, 8), parser, new AllowAllHostGuard());
 
     @Test
     void 실제_주소_검사로_루프백과_차단_대역은_클라이언트를_만들지_않는다() {
         LlmClientFactory guarded = new LlmClientFactory(
-                new LlmProperties(0.2, null, null, null, null, 1, 10), parser, new LlmHostGuard("db.internal"));
+                new LlmProperties(0.2, null, null, null, null, 1, 10, 8), parser, new LlmHostGuard("db.internal"));
 
         assertThatThrownBy(() -> guarded.create(connection(LlmProvider.OLLAMA, "127.0.0.1", 11434, null)))
                 .isInstanceOf(LlmException.class)
@@ -56,7 +56,7 @@ class LlmClientFactoryTest {
     @Test
     void 저장된_주소도_호출할_때마다_다시_검사한다() {
         AtomicBoolean allowed = new AtomicBoolean(true);
-        LlmClientFactory switching = new LlmClientFactory(new LlmProperties(0.2, null, null, null, null, 1, 10), parser,
+        LlmClientFactory switching = new LlmClientFactory(new LlmProperties(0.2, null, null, null, null, 1, 10, 8), parser,
                 new LlmHostGuard("") {
                     @Override
                     public Optional<String> rejectReason(String rawHost) {
@@ -190,7 +190,7 @@ class LlmClientFactoryTest {
         server.start();
         try {
             LlmClientFactory slowFactory = new LlmClientFactory(
-                    new LlmProperties(0.2, Duration.ofSeconds(1), Duration.ofMillis(300), null, null, 1, 10),
+                    new LlmProperties(0.2, Duration.ofSeconds(1), Duration.ofMillis(300), null, null, 1, 10, 8),
                     parser, new AllowAllHostGuard());
             LlmClient client = slowFactory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
 
@@ -222,7 +222,7 @@ class LlmClientFactoryTest {
         server.start();
         try {
             LlmClientFactory slowFactory = new LlmClientFactory(
-                    new LlmProperties(0.2, Duration.ofSeconds(1), null, Duration.ofMillis(500), null, 1, 10),
+                    new LlmProperties(0.2, Duration.ofSeconds(1), null, Duration.ofMillis(500), null, 1, 10, 8),
                     parser, new AllowAllHostGuard());
             LlmClient client = slowFactory.create(connection(LlmProvider.OLLAMA, server.getAddress().getPort(), null));
 

@@ -310,6 +310,38 @@ class MemoSummaryServiceTest {
         assertThat(memoSummaryService.getSummary(otherId, others.memoId()).status()).isEqualTo(SummaryStatus.FAILED);
     }
 
+    @Test
+    void 한_회원의_LLM_서버가_느려도_다른_서버를_쓰는_회원의_요약은_기다리지_않는다() throws InterruptedException {
+        Long otherId = testUsers.create("other").getUserId();
+        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.OLLAMA, "192.168.0.20", 11434,
+                "llama3.2:3b", null, false));
+        CountDownLatch slowEntered = new CountDownLatch(1);
+        CountDownLatch releaseSlow = new CountDownLatch(1);
+        fakeLlmClient.willReturn((title, content) -> {
+            if (title.equals("느린 서버")) {
+                slowEntered.countDown();
+                try {
+                    releaseSlow.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return new SummaryResult("요약", List.of());
+        });
+
+        try {
+            MemoResponse slow = memoService.create(userId, new MemoRequest("느린 서버", "본문"));
+            assertThat(slowEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            MemoResponse other = memoService.create(otherId, new MemoRequest("다른 서버", "본문"));
+
+            await().atMost(TIMEOUT).until(() ->
+                    memoSummaryService.getSummary(otherId, other.memoId()).status() == SummaryStatus.DONE);
+            assertThat(memoSummaryService.getSummary(userId, slow.memoId()).status()).isEqualTo(SummaryStatus.PROCESSING);
+        } finally {
+            releaseSlow.countDown();
+        }
+    }
+
     private void saveSetting() {
         llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
                 "qwen2.5-7b-instruct", null, false));

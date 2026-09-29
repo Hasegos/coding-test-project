@@ -32,7 +32,7 @@ class OllamaLlmClientTest {
 
     private static final String BASE_URL = "http://ollama.test";
 
-    private final LlmProperties properties = new LlmProperties(0.2, null, null, null, null, 1, 10);
+    private final LlmProperties properties = new LlmProperties(0.2, null, null, null, null, 1, 10, 8);
     private final LlmConnection connection =
             new LlmConnection(LlmProvider.OLLAMA, "192.168.0.10", 11434, "qwen2.5:7b", null);
 
@@ -184,7 +184,7 @@ class OllamaLlmClientTest {
 
     @Test
     void 최대_크기를_넘는_응답은_읽기를_중단한다() {
-        LlmProperties small = new LlmProperties(0.2, null, null, null, DataSize.ofKilobytes(1), 1, 10);
+        LlmProperties small = new LlmProperties(0.2, null, null, null, DataSize.ofKilobytes(1), 1, 10, 8);
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         MockRestServiceServer smallServer = MockRestServiceServer.bindTo(builder).build();
         OllamaLlmClient smallClient = new OllamaLlmClient(builder.build(), builder.build(), connection, small,

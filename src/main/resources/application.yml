@@ -69,5 +69,6 @@ llm:
   read-timeout: 120s      # 요약 요청 전체 제한 시간 (응답 본문 수신까지)
   models-timeout: 15s     # 모델 목록 조회(연결 테스트) 전체 제한 시간
   max-response-size: 1MB  # 응답 본문 최대 크기
-  concurrency: 1          # 동시 요약 수 (GPU 1장이면 1 권장)
-  queue-capacity: 100
+  concurrency: 1          # LLM 서버 하나에 동시에 보낼 요약 수 (GPU 1장이면 1 권장)
+  queue-capacity: 100     # LLM 서버 하나의 요약 대기열 크기
+  max-parallel: 8         # 전체 동시 요약 수 (서로 다른 LLM 서버는 동시에 처리)

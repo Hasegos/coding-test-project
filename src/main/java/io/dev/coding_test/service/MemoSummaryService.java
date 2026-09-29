@@ -34,7 +34,8 @@ import java.util.Optional;
  * </p>
  * <ol>
  *     <li>메모 저장/수정/재요약 요청 시 {@link #requestSummary(Memo)}가 PENDING으로 바꾸고 이벤트를 발행한다.</li>
- *     <li>트랜잭션 커밋 후 {@code MemoSummaryEventListener}가 LLM 전용 실행기에서 {@link #summarize(Long, long)}를 실행한다.</li>
+ *     <li>트랜잭션 커밋 후 {@code MemoSummaryEventListener}가 작성자의 LLM 서버 대기열({@code LlmServerQueue})에 넣고,
+ *         차례가 되면 {@link #summarize(Long, long)}를 실행한다.</li>
  *     <li>LLM 호출은 DB 커넥션을 잡지 않도록 트랜잭션 밖에서 수행하고, 결과 반영은 짧은 새 트랜잭션에서 처리한다.</li>
  *     <li>요약 중 메모가 수정·삭제되면 revision이 달라지므로 오래된 결과는 버린다.</li>
  * </ol>
@@ -80,7 +81,8 @@ public class MemoSummaryService {
     public void requestSummary(Memo memo) {
         memo.setSummaryStatus(SummaryStatus.PENDING);
         memo.setSummaryError(null);
-        eventPublisher.publishEvent(new MemoSummaryRequestedEvent(memo.getMemoId(), memo.getRevision()));
+        eventPublisher.publishEvent(
+                new MemoSummaryRequestedEvent(memo.getMemoId(), memo.getUser().getUserId(), memo.getRevision()));
         log.info("요약 요청 - memoId: {}, revision: {}", memo.getMemoId(), memo.getRevision());
     }
 
@@ -146,7 +148,7 @@ public class MemoSummaryService {
         }
         memoRepository.markPendingByStatus(userId, SummaryStatus.FAILED);
         failed.forEach(memo -> eventPublisher.publishEvent(
-                new MemoSummaryRequestedEvent(memo.memoId(), memo.revision())));
+                new MemoSummaryRequestedEvent(memo.memoId(), memo.userId(), memo.revision())));
         log.info("실패한 요약 재요청 - userId: {}, {}건", userId, failed.size());
         return failed.size();
     }
