@@ -89,7 +89,7 @@ class EncryptedStringConverterTest {
     }
 
     private static LlmSettingRequest request(String apiKey) {
-        return new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234, "qwen2.5-7b-instruct", apiKey, false);
+        return new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.100.0.99", 1234, "qwen2.5-7b-instruct", apiKey, false);
     }
 
     private String storedApiKey() {
