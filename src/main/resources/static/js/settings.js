@@ -51,6 +51,20 @@
             if (port) portInput.value = port;
         }
 
+        /* ===================== 서버 검증 오류 지우기 ===================== */
+        // 저장 후 돌아온 화면의 오류(예: Tailscale IP가 아님)는 해당 칸을 고치기 시작하면 지운다.
+        function clearServerError(input) {
+            input.classList.remove('field__input--error');
+            const error = input.closest('.field').querySelector('.field__error');
+            if (error) error.remove();
+        }
+
+        [hostInput, portInput].forEach(function (input) {
+            input.addEventListener('input', function () {
+                clearServerError(input);
+            });
+        });
+
         hostInput.addEventListener('paste', function () {
             setTimeout(normalizeHost, 0);
         });
