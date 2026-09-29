@@ -58,18 +58,25 @@
 + 작은 모델이 예시를 결과에 옮겨 적지 않도록 프롬프트에는 구체적인 예시 값 없이 형식만 적고, 메모에 없는 담당자·기한이 붙은 할 일은 버립니다.
 + 연결 실패·응답 시간 초과·서버 오류를 원인을 알 수 있는 문장으로 저장하고, **다시 시도** 버튼으로 재요약할 수 있습니다.
 
-### 4) LLM 설정 (로컬 IP 입력)
+### 4) LLM 설정 (Tailscale IP 입력)
 + 런타임(Ollama / LM Studio), 서버 IP, 포트, API Key(선택)를 입력하고 **연결 테스트**로 서버의 모델 목록을 불러와 선택합니다.
 + LLM 설정은 회원마다 따로 저장되고, API Key 는 **AES-256-GCM 으로 암호화**해 DB 에 저장합니다.
-+ 서버가 입력한 주소로 직접 요청하므로 **IP 숫자 주소만, 사설망·Tailscale 대역만** 허용합니다. 거부 사유에 맞는 안내 문구를 보여줍니다.
++ 서버가 입력한 주소로 직접 요청하므로 **IP 숫자 주소만** 허용하고, 기본값은 **Tailscale 대역만** 허용합니다. 거부 사유에 맞는 안내 문구를 보여줍니다.
++ 가정·학교의 PC 는 공유기 뒤의 사설 IP 를 쓰므로, LLM PC 가 서버와 다른 네트워크에 있으면 사설 IP·공인 IP 로는 연결할 수 없습니다. 그래서 설정 화면에 **Tailscale 연결 가이드**(설치 → LLM PC 를 운영자에게 공유 → 서버 열기 → Tailscale IP 입력 → 연결 테스트)를 보여주고, 운영자 이메일(`llm.guard.share-email`)을 설정하면 가이드에 표시합니다.
+
+| LLM PC 위치 | 연결 방법 |
+|---|---|
+| 서버와 같은 PC · 같은 공유기 | Tailscale IP (서버와 같은 LAN 만 쓴다면 `llm.guard.allowed-networks: []` 로 사설 IP 허용 가능) |
+| 다른 집 · 학교 · 회사 | Tailscale IP — 사설 IP 는 밖에서 닿지 않고, 공인 IP 는 공유기 주소라 포트포워딩 없이는 닿지 않음 |
 
 | 입력 | 결과 |
 |---|---|
-| `10.x` · `172.16~31.x` · `192.168.x` · Tailscale `100.64~127.x` · IPv6 ULA `fc00::/7` | ✅ 허용 |
-| `localhost` · `*.localhost` · `host.docker.internal` · `127.x` · `0.0.0.0` · `::1` | ❌ 루프백 — 같은 PC 여도 사설 IP 입력 |
+| Tailscale `100.64~127.x` · `fd7a:115c:a1e0::/48` | ✅ 허용 |
+| `10.x` · `172.16~31.x` · `192.168.x` · IPv6 ULA `fc00::/7` | ❌ 기본 거부 — Tailscale 연결 가이드 안내 (`allowed-networks: []` 설정 시 허용) |
+| `localhost` · `*.localhost` · `host.docker.internal` · `127.x` · `0.0.0.0` · `::1` | ❌ 루프백 — Tailscale 연결 가이드 안내 |
 | `169.254.x`(클라우드 메타데이터) · 멀티캐스트 · 예약·문서용 대역 · `fe80::` | ❌ 차단 대역 |
 | 공인 IP · 도메인 · 비표준 표기(`127.1`, `2130706433`, `010.0.0.1`) · DB 서버 주소 | ❌ 거부 |
-| 허용 포트(기본 `1234`, `11434`) 밖의 포트 · 허용 대역(`llm.guard.allowed-networks`, 설정 시) 밖의 주소 | ❌ 거부 — 허용 포트·대역 안내 |
+| 허용 포트(기본 `1234`, `11434`) 밖의 포트 | ❌ 거부 — 허용 포트 안내 |
 
 + IPv6 안에 IPv4 가 들어간 주소(`::ffff:127.0.0.1`, 6to4)는 안쪽 IPv4 기준으로 판단하고, 저장할 때와 **호출 직전 모두** 검사합니다.
 + 연결 테스트는 소요 시간과 모델 목록을 보여주며, 임베딩 등 채팅에 쓸 수 없는 모델은 목록에서 뺍니다.
@@ -148,7 +155,7 @@
 <img width="700" alt="LLM 미설정 안내" src="img/LLM미설정안내.png" />
 
 - 메인 담당자 : 손수호
-- 주요 개발 기능 : 런타임 선택(기본 포트 자동 변경), 로컬 IP 검증, 연결 테스트 및 모델 목록 선택, API Key 저장·유지·삭제, 미설정 안내 배너
+- 주요 개발 기능 : 런타임 선택(기본 포트 자동 변경), Tailscale IP 검증과 연결 가이드, 연결 테스트 및 모델 목록 선택, API Key 저장·유지·삭제, 미설정 안내 배너
 
 ---
 
@@ -327,14 +334,14 @@ erDiagram
 | SQL Injection | Spring Data 파라미터 바인딩만 사용(문자열로 SQL 조립 없음), 검색 키워드의 `\` `%` `_` 이스케이프 |
 | CSRF | Spring Security 가 모든 변경 요청(POST/PUT/DELETE)에 CSRF 토큰 검증. 폼은 자동 삽입, JS 는 `X-CSRF-TOKEN` 헤더 |
 | SSRF | LLM 서버 주소를 사설망·Tailscale 대역 IP 로 제한(`LlmHostGuard`) — localhost·루프백·`169.254.x`·공인 IP·도메인(DNS rebinding)·DB 주소 거부, 저장 시·호출 직전 재검사, 리다이렉트 미추적, 프록시 미사용 |
-| 내부망 탐색 | 연결 결과로 서버 쪽 내부망(공유기·NAS·tailnet 기기)의 열린 포트를 확인하지 못하도록 허용 포트(기본 1234·11434)만 허용, 허용 대역 설정(`llm.guard.allowed-networks`, 예: Tailscale만 `100.64.0.0/10`), 연결 테스트·주소 변경 회원당 1분 10회(`LlmProbeLimiter`) |
+| 내부망 탐색 | 연결 결과로 서버 쪽 내부망(공유기·NAS·tailnet 기기)의 열린 포트를 확인하지 못하도록 허용 포트(기본 1234·11434)만 허용, 허용 대역(`llm.guard.allowed-networks`, 기본 Tailscale 대역만 — 서버 쪽 집·회사 LAN 은 입력 불가), 연결 테스트·주소 변경 회원당 1분 10회(`LlmProbeLimiter`) |
 | 프롬프트 인젝션 | 메모를 `<memo>` 태그로 감싸 데이터로만 다루도록 지시, 메모 안의 `<memo>` 태그 제거, 응답은 JSON 스키마(`summary`, `todos`)로 고정 |
 | 자원 고갈 | LLM 응답 본문 1MB 제한, 전체 제한 시간(요약 120초·모델 목록 15초)으로 조금씩 보내며 버티는 서버도 차단 |
 | 정보 노출 | LLM 서버의 오류 응답 본문은 노출하지 않고 상태 코드별 안내(401·403·400·404·429·3xx)만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
 | 클릭재킹 · MIME 스니핑 | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` |
 | 세션 | 로그인 시 세션 ID 재발급(세션 고정 방지), 로그아웃은 POST(CSRF 토큰 필요)로만 처리, 쿠키로만 추적(URL 에 세션 ID 미노출), `HttpOnly`, `SameSite=Lax` |
 
-+ LLM 서버를 Tailscale 로만 연결한다면 `LLM_GUARD_ALLOWED_NETWORKS=100.64.0.0/10` 으로 사설망(집·회사 LAN)을 막는 것을 권장합니다. tailnet 안의 다른 기기까지 막으려면 Tailscale ACL 로 서버 노드가 LLM 포트에만 접근하도록 제한합니다.
++ 기본값은 Tailscale 대역만 허용하므로 서버가 속한 집·회사 LAN 의 장비는 LLM 서버 주소로 입력할 수 없습니다. tailnet 안의 다른 기기까지 막으려면 Tailscale ACL 로 서버 노드가 LLM 포트(1234·11434)에만 접근하도록 제한합니다.
 + 리버스 프록시(Nginx 등) 뒤에서 실행하면 `server.forward-headers-strategy: native` 를 설정해야 로그인 시도 제한이 실제 사용자 IP 기준으로 동작합니다.
 + API Key 는 LLM 서버에 원문으로 보내야 하므로 해싱(복원 불가)이 아니라 암호화(복원 가능)를 사용합니다. 비밀번호는 원문이 필요 없으므로 해싱합니다.
 + `API_KEY_ENCRYPTION_KEY` 를 바꾸면 기존에 저장한 API Key 는 복호화할 수 없어 "저장된 키 없음"으로 표시되며, 다시 입력하면 새 키로 암호화됩니다.
@@ -472,9 +479,10 @@ psql -U postgres -d ai_memo -f src/main/resources/db/schema.sql
 ./mvnw verify
 ```
 
-+ 실행 후 **회원가입 → 로그인** 하고, 상단 **LLM 설정**에서 내 로컬 LLM 서버를 연결합니다.
-    1. 런타임 선택 — Ollama(기본 포트 11434) / LM Studio(기본 포트 1234)
-    2. 서버 IP 입력 — 같은 PC 여도 `127.0.0.1` 대신 그 PC 의 사설 IP(`192.168.x.x` 등), Tailscale 이면 `tailscale ip -4` 로 확인한 `100.x.x.x`
-    3. **연결 테스트 · 모델 불러오기** → 모델 선택 → 저장
-+ LM Studio 는 Developer 탭에서 서버를 시작하고 Server Settings 의 *Serve on Local Network* 를 켭니다. 화면의 `Reachable at` 주소(`http://IP:1234`)를 서버 IP 칸에 그대로 붙여넣으면 IP·포트가 자동으로 나뉩니다. Ollama 를 다른 PC 에서 접속하려면 `OLLAMA_HOST=0.0.0.0` 으로 실행합니다.
++ 서버를 실행하는 PC(또는 VM)에도 Tailscale 을 설치하고 로그인해 tailnet 에 참여시킵니다.
++ 실행 후 **회원가입 → 로그인** 하고, 상단 **LLM 설정**의 **Tailscale 연결 가이드**를 따라 LLM PC 를 연결합니다.
+    1. LLM PC 에 Tailscale 설치 → 운영자와 다른 계정이면 LLM PC 를 운영자에게 공유(Machines → ⋯ → Share)
+    2. 런타임 선택 — Ollama(기본 포트 11434, `OLLAMA_HOST=0.0.0.0`) / LM Studio(기본 포트 1234, *Serve on Local Network*)
+    3. 서버 IP 입력 — LLM PC 에서 `tailscale ip -4` 로 확인한 `100.x.x.x` (LM Studio 의 `Reachable at` 주소를 붙여넣으면 IP·포트가 자동으로 나뉨)
+    4. **연결 테스트 · 모델 불러오기** → 모델 선택 → 저장
 + LLM 서버가 꺼져 있어도 애플리케이션은 정상 기동되며, 해당 메모는 **요약 실패**로 표시되고 서버를 켠 뒤 **다시 시도**로 재요약할 수 있습니다.
