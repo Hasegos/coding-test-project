@@ -50,7 +50,7 @@ public class MemoSummaryService {
     public static final int MAX_ERROR_LENGTH = 500;
 
     public static final String NOT_CONFIGURED_MESSAGE =
-            "LLM 서버가 설정되지 않았어요. 상단 'LLM 설정'에서 로컬 IP를 입력한 뒤 다시 시도해주세요.";
+            "LLM 서버가 설정되지 않았어요. 상단 'LLM 설정'에서 LLM PC의 Tailscale IP를 입력한 뒤 다시 시도해주세요.";
 
     private final MemoRepository memoRepository;
     private final LlmSettingService llmSettingService;
