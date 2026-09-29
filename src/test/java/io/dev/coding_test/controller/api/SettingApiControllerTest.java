@@ -1,8 +1,11 @@
 package io.dev.coding_test.controller.api;
 
 import io.dev.coding_test.dto.setting.LlmConnectionTestResponse;
+import io.dev.coding_test.dto.setting.LlmSettingRequest;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.llm.guard.LlmHostGuard;
+import io.dev.coding_test.model.enums.LlmProvider;
+import io.dev.coding_test.service.LlmSettingService;
 import io.dev.coding_test.support.FakeLlmClient;
 import io.dev.coding_test.support.TestLoginContext;
 import io.dev.coding_test.support.TestUsers;
@@ -50,6 +53,9 @@ class SettingApiControllerTest {
 
     @Autowired
     private FakeLlmClient fakeLlmClient;
+
+    @Autowired
+    private LlmSettingService llmSettingService;
 
     @BeforeEach
     void setUp() {
@@ -277,6 +283,21 @@ class SettingApiControllerTest {
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.message").value(startsWith("LLM 서버 연결 시도가 너무 많아요.")));
         saveSetting("100.100.0.10").andExpect(status().isOk());
+    }
+
+    @Test
+    void 다른_회원이_등록한_서버를_API_Key_없이_저장하면_400과_apiKey_필드_오류를_반환한다() throws Exception {
+        Long otherId = testUsers.create("owner").getUserId();
+        llmSettingService.save(otherId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.100.0.50", 1234, "model", "token", false));
+
+        mockMvc.perform(put("/api/settings/llm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider": "LMSTUDIO", "host": "100.100.0.50", "port": 1234, "model": "model"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("apiKey"))
+                .andExpect(jsonPath("$.errors[0].message").value(LlmSettingService.SHARED_KEY_REQUIRED_MESSAGE));
     }
 
     private ResultActions testConnection(String host) throws Exception {
