@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -66,13 +67,13 @@ class SettingPageControllerTest {
 
     @Test
     void 저장된_설정을_폼에_채우고_API_Key_값은_노출하지_않는다() throws Exception {
-        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
+        llmSettingService.save(userId, new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.100.0.99", 1234,
                 "qwen2.5-vl-7b-instruct", "secret-token", false));
 
         mockMvc.perform(get("/settings/llm"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("llmConfigured", true))
-                .andExpect(content().string(containsString("value=\"100.66.180.73\"")))
+                .andExpect(content().string(containsString("value=\"100.100.0.99\"")))
                 .andExpect(content().string(containsString("저장된 키 사용 중")))
                 .andExpect(content().string(not(containsString("secret-token"))));
     }
@@ -81,7 +82,7 @@ class SettingPageControllerTest {
     void 저장_성공시_설정_화면으로_리다이렉트한다() throws Exception {
         mockMvc.perform(post("/settings/llm")
                         .param("provider", "LMSTUDIO")
-                        .param("host", "100.66.180.73")
+                        .param("host", "100.100.0.99")
                         .param("port", "1234")
                         .param("model", "qwen2.5-vl-7b-instruct"))
                 .andExpect(status().is3xxRedirection())
@@ -98,6 +99,14 @@ class SettingPageControllerTest {
                 .andExpect(content().string(containsString("Tailscale 연결 가이드")))
                 .andExpect(content().string(containsString("href=\"#tailscale-guide\"")))
                 .andExpect(content().string(containsString("https://login.tailscale.com/admin/machines")));
+    }
+
+    @Test
+    void 화면의_예시_안내에는_실제_IP가_아니라_형식만_보여준다() throws Exception {
+        mockMvc.perform(get("/settings/llm"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("placeholder=\"예) 100.x.x.x")))
+                .andExpect(content().string(not(matchesPattern("(?s).*(placeholder|value)=\"[^\"]*\\b100\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}.*"))));
     }
 
     @Test
