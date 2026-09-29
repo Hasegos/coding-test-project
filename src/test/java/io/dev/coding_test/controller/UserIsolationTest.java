@@ -122,7 +122,7 @@ class UserIsolationTest {
 
     @Test
     void LLM_설정은_회원마다_따로_저장된다() throws Exception {
-        llmSettingService.save(owner.getUserId(), new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.66.180.73", 1234,
+        llmSettingService.save(owner.getUserId(), new LlmSettingRequest(LlmProvider.LMSTUDIO, "100.100.0.99", 1234,
                 "qwen2.5-7b-instruct", "owner-secret", false));
 
         mockMvc.perform(get("/api/settings/llm")).andExpect(status().isNotFound());
@@ -138,7 +138,7 @@ class UserIsolationTest {
 
         assertThat(llmSettingService.getSetting(owner.getUserId())).get()
                 .satisfies(setting -> {
-                    assertThat(setting.host()).isEqualTo("100.66.180.73");
+                    assertThat(setting.host()).isEqualTo("100.100.0.99");
                     assertThat(setting.hasApiKey()).isTrue();
                 });
         assertThat(llmSettingService.getSetting(other.getUserId())).get()
