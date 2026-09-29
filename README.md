@@ -101,6 +101,8 @@
 | 요약 시작 시점 | 저장/수정 트랜잭션 **커밋 이후** (커밋 전 메모를 조회하는 문제 방지) |
 | 동시 실행 수 | **LLM 서버(`IP:포트`)마다** 1개(GPU 1장 기준) — 같은 서버의 요약은 서버별 대기열(100건)에서 순서대로, **다른 서버는 동시에** 처리(전체 최대 8개) |
 | 느린 서버 | 한 회원의 서버가 느리거나 꺼져 있어도 다른 서버를 쓰는 회원의 요약은 기다리지 않음 (측정: 15초 서버 뒤에 저장한 1초 서버 요약 16.3초 → 1.8초) |
+| 회원당 동시 실행 | 회원 한 명은 동시에 **1건**만 실행 — 서버 주소를 바꿔 가며 여러 서버에 동시에 요청을 걸어 두는 것을 막고, 이미 실행 중인 회원의 다음 요약이 기다리는 동안 다른 회원의 요약이 먼저 실행됨 |
+| 응답 없는 서버 | 연결 실패·시간 초과가 **연속 3번**이면 그 서버를 5분 쉬게 함 — 쉬는 동안은 서버에 요청하지 않고 바로 실패 처리(스레드 미점유). 쉬는 시간이 끝나면 1건만 시험해 실패하면 **2배(5분→10분→…최대 1시간)**, 성공하면 정상 복귀. LLM 설정을 저장하면 쉬는 중이어도 바로 1건 시험. 401·500처럼 서버가 응답한 오류는 세지 않음 |
 | 대기열 초과 | 해당 메모를 **요약 실패**로 기록 (재시도 가능), 다른 서버의 대기열은 영향 없음 |
 | 요약 중 수정·삭제 | `revision` 이 달라진 오래된 결과는 버리고 새 내용으로 다시 요약 |
 | 중복 요청 | 이미 요약 중(대기/요약 중)인 메모의 재요약 요청은 무시 |
@@ -339,6 +341,7 @@ erDiagram
 | LLM 무단 사용 | 연결 가이드에서 인증 토큰을 필수 단계로 안내, 다른 회원이 이미 등록한 IP·포트는 인증이 켜져 있고 그 서버의 토큰이 맞아야 등록(`LlmSettingService`), 토큰은 회원마다 암호화 저장 |
 | 내부망 탐색 | 연결 결과로 서버 쪽 내부망(공유기·NAS·tailnet 기기)의 열린 포트를 확인하지 못하도록 허용 포트(기본 1234·11434)만 허용, 허용 대역(`llm.guard.allowed-networks`, 기본 Tailscale 대역만 — 서버 쪽 집·회사 LAN 은 입력 불가), 연결 테스트·주소 변경 회원당 1분 10회(`LlmProbeLimiter`) |
 | 프롬프트 인젝션 | 메모를 `<memo>` 태그로 감싸 데이터로만 다루도록 지시, 메모 안의 `<memo>` 태그 제거, 응답은 JSON 스키마(`summary`, `todos`)로 고정 |
+| 느린 응답으로 처리 붙잡기 | 회원당 동시 요약 1건, 서버별 대기열, 연속 응답 없는 서버 휴식(`LlmServerBreaker`, 쉬는 시간 2배씩 증가) — 응답 없는 서버 1대가 붙잡는 시간이 첫 3건(6분) 이후 5분→10분→20분… 간격의 1건(2분)으로 줄어듦. 공유 기기는 운영자가 직접 수락해야 연결되므로 계정을 늘려도 수락한 만큼만 영향 |
 | 자원 고갈 | LLM 응답 본문 1MB 제한, 전체 제한 시간(요약 120초·모델 목록 15초)으로 조금씩 보내며 버티는 서버도 차단 |
 | 정보 노출 | LLM 서버의 오류 응답 본문은 노출하지 않고 상태 코드별 안내(401·403·400·404·429·3xx)만 표시, API Key 는 응답·로그에서 제외(`****`), 500 오류는 상세 내용 숨김 |
 | 클릭재킹 · MIME 스니핑 | `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` |
@@ -346,7 +349,8 @@ erDiagram
 
 + 회원이 공유한 LLM PC 는 운영자 tailnet 에서 **격리(quarantine)** 상태라 운영자 기기로 먼저 연결할 수 없고, 운영자 쪽 기기 목록도 보지 못합니다. 서버는 LLM 응답을 1MB·제한 시간·JSON 스키마·길이 제한으로 검사하고 화면에는 이스케이프해 출력합니다.
 + 기본값은 Tailscale 대역만 허용하므로 서버가 속한 집·회사 LAN 의 장비는 LLM 서버 주소로 입력할 수 없습니다. tailnet 안의 다른 기기까지 막으려면 Tailscale ACL 로 서버 노드가 LLM 포트(1234·11434)에만 접근하도록 제한합니다.
-+ 리버스 프록시(Nginx 등) 뒤에서 실행하면 `server.forward-headers-strategy: native` 를 설정해야 로그인 시도 제한이 실제 사용자 IP 기준으로 동작합니다.
++ 리버스 프록시(Nginx·Cloudflare Tunnel·Tailscale Serve 등) 뒤에서 실행하면 `server.forward-headers-strategy: native` 를 설정해야 로그인 시도 제한이 실제 사용자 IP 기준으로 동작합니다. 이때 `X-Forwarded-For` 위조를 막으려면 `server.address: 127.0.0.1` 로 프록시만 접속할 수 있게 합니다.
++ HTTPS 로 서비스할 때는 `server.servlet.session.cookie.secure: true` 로 세션 쿠키를 HTTPS 요청에만 보냅니다. (세 설정 모두 환경변수로 바꿀 수 있고, 기본값은 HTTP 직접 접속 기준)
 + API Key 는 LLM 서버에 원문으로 보내야 하므로 해싱(복원 불가)이 아니라 암호화(복원 가능)를 사용합니다. 비밀번호는 원문이 필요 없으므로 해싱합니다.
 + `API_KEY_ENCRYPTION_KEY` 를 바꾸면 기존에 저장한 API Key 는 복호화할 수 없어 "저장된 키 없음"으로 표시되며, 다시 입력하면 새 키로 암호화됩니다.
 
@@ -395,7 +399,7 @@ erDiagram
     │   ├── 🤖 llm/
     │   │   ├── client/                      # LlmClient(인터페이스), AbstractLlmClient(공통 흐름·크기/시간 제한·오류 변환), LlmClientFactory
     │   │   ├── guard/                       # LlmHostGuard(주소·포트 검사, SSRF 방지), LlmGuardProperties, IpRange(CIDR), LlmProbeLimiter(연결 시도 제한)
-    │   │   ├── queue/                       # LlmServerQueue — LLM 서버별 요약 대기열
+    │   │   ├── queue/                       # LlmServerQueue(서버별 대기열·회원당 동시 1건), LlmServerBreaker(응답 없는 서버 휴식)
     │   │   ├── provider/
     │   │   │   ├── ollama/                  # OllamaLlmClient, 요청/응답(OllamaChatRequest, OllamaTagsResponse …)
     │   │   │   └── lmstudio/                # LmStudioLlmClient, 요청/응답(LmStudioChatRequest, LmStudioModelsResponse …)
@@ -403,7 +407,7 @@ erDiagram
     │   │   ├── prompt/                      # SummaryPrompt — 프롬프트(예시 값 없음, <memo> 태그), 응답 JSON 스키마
     │   │   ├── parser/                      # SummaryResultParser — LLM 응답 JSON 추출·정리, 원문에 없는 담당자 제거
     │   │   ├── dto/                         # SummaryResult, ChatMessage, LlmConnection
-    │   │   └── exception/                   # LlmException
+    │   │   └── exception/                   # LlmException, LlmAuthException(401·403), LlmUnavailableException(연결 실패·시간 초과)
     │   ├── 🧾 model/
     │   │   ├── User.java, Memo.java, MemoTodo.java, LlmSetting.java   # JPA 엔티티 (데이터만 보관)
     │   │   └── enums/                       # UserRole, SummaryStatus, LlmProvider, IpCategory
@@ -427,12 +431,13 @@ erDiagram
     │       ├── css/common/, css/pages/      # 디자인 토큰·공통 / 화면별 style
     │       └── js/                          # common, theme-init, auth(로그인·회원가입 검증), memo-form, memo-detail(요약 폴링), settings
     └── test/java/io/dev/coding_test/
+        ├── config/                          # 배포 환경변수 기본값 테스트
         ├── common/                          # 이메일·비밀번호 정규식, API Key 암호화, IP 해석·분류 테스트
         ├── security/                        # CSRF·보안 헤더, 로그인 시도 제한 테스트
         ├── controller/                      # view·api MockMvc, 회원가입·로그인 검증·잠금, 회원 간 데이터 분리 테스트
         ├── service/                         # 메모 CRUD, 비동기 요약·경합, LLM 설정 테스트
         ├── repository/                      # 경로별 SQL 수 검증
-        ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소·포트·대역 검사, 연결 시도 제한, 서버별 대기열, 프롬프트, 파서, 팩토리 테스트
+        ├── llm/                             # Ollama/LM Studio 요청 형식·상태 코드, 주소·포트·대역 검사, 연결 시도 제한, 서버별 대기열·서버 휴식, 프롬프트, 파서, 팩토리 테스트
         └── support/                         # FakeLlmClient(Factory), TestUsers·TestLoginContext(테스트 로그인), TestMockMvcCustomizer, MutableClock
 ```
 
