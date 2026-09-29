@@ -44,7 +44,7 @@ public class LlmHostGuard {
     public static final String LOCALHOST_MESSAGE =
             "localhost·127.0.0.1 같은 루프백 주소는 사용할 수 없어요. LLM 서버 PC의 사설 IP(192.168.x.x 등)나 Tailscale IP(100.x.x.x)를 입력해주세요.";
     public static final String URL_MESSAGE =
-            "http:// 나 포트 없이 IP만 입력해주세요. (예: 100.66.180.73) 포트는 오른쪽 칸에 입력합니다.";
+            "http:// 나 포트 없이 IP만 입력해주세요. (예: 100.x.x.x) 포트는 오른쪽 칸에 입력합니다.";
     public static final String DOMAIN_MESSAGE = "도메인이 아닌 IP 주소를 입력해주세요. (예: Tailscale IP 100.x.x.x)";
     public static final String INVALID_IP_MESSAGE = "IP 주소 형식이 올바르지 않아요.";
     public static final String BLOCKED_MESSAGE =
