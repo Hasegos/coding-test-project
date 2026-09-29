@@ -1,5 +1,7 @@
 server:
   port: 8083
+  address: ${SERVER_ADDRESS:0.0.0.0}  # 리버스 프록시와 같은 PC에서 실행하면 127.0.0.1 로 바인딩해 프록시를 거치지 않는 접속 차단
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}  # 프록시(Nginx·Cloudflare Tunnel·Tailscale Serve) 뒤에서는 native — 로그인 시도 제한이 실제 사용자 IP 기준으로 동작
   shutdown: graceful
   compression: # HTML·CSS·JS·JSON 응답 gzip 압축 (1KB 이상)
     enabled: true
@@ -10,6 +12,7 @@ server:
       tracking-modes: cookie # flash 메시지용 세션 ID가 리다이렉트 URL(;jsessionid=)에 노출되지 않도록 쿠키만 사용
       cookie:
         http-only: true      # JS에서 세션 쿠키 접근 차단
+        secure: ${SESSION_COOKIE_SECURE:false}  # HTTPS 로 서비스할 때 true — 세션 쿠키를 HTTPS 요청에만 전송
         same-site: lax       # 다른 사이트에서 보내는 POST 요청에 세션 쿠키 미포함 (CSRF 1차 방어)
 
 spring:
