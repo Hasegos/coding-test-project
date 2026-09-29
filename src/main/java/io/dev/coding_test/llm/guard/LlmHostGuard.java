@@ -4,16 +4,21 @@ import io.dev.coding_test.common.util.IpAddressUtil;
 import io.dev.coding_test.llm.exception.LlmException;
 import io.dev.coding_test.model.enums.IpCategory;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * LLM 서버 주소 검사 (SSRF 방지).
@@ -27,6 +32,8 @@ import java.util.regex.Pattern;
  *     <li>링크 로컬(169.254.x · 클라우드 메타데이터), 멀티캐스트, 예약·문서용 대역 거부</li>
  *     <li>공인 IP 거부 (로컬 전용), 데이터베이스 서버 주소 거부</li>
  *     <li>허용: 사설망(10/8, 172.16/12, 192.168/16), Tailscale(100.64/10), IPv6 ULA(fc00::/7)</li>
+ *     <li>{@code llm.guard.allowed-networks}를 설정하면 그 대역만, {@code llm.guard.allowed-ports}에 있는 포트만 허용
+ *         — 서버가 속한 내부망의 다른 장비·포트를 확인하는 데 쓰이지 않도록 범위를 좁힌다.</li>
  * </ul>
  */
 @Slf4j
@@ -44,6 +51,8 @@ public class LlmHostGuard {
     public static final String PUBLIC_MESSAGE =
             "공인 IP는 사용할 수 없어요. 사설망(10.x, 172.16~31.x, 192.168.x) 또는 Tailscale(100.64~127.x) IP를 입력해주세요.";
     public static final String DATABASE_MESSAGE = "데이터베이스 서버 주소는 LLM 서버로 사용할 수 없어요.";
+    public static final String NETWORK_MESSAGE_PREFIX = "이 서비스에서 허용하지 않은 네트워크 주소예요. 허용 대역: ";
+    public static final String PORT_MESSAGE_PREFIX = "이 서비스에서 허용하지 않은 포트예요. 허용 포트: ";
 
     /** 루프백으로 연결되는 로컬 호스트명 (Docker 호스트 포함) */
     private static final Set<String> LOCAL_HOSTNAMES = Set.of(
@@ -57,9 +66,32 @@ public class LlmHostGuard {
 
     private final String databaseHost;
     private volatile Set<InetAddress> databaseAddresses;
+    private final List<IpRange> allowedNetworks;
+    private final Set<Integer> allowedPorts;
 
-    public LlmHostGuard(@Value("${POSTGRESQL_HOST:localhost}") String databaseHost) {
+    /**
+     * @param databaseHost 데이터베이스 서버 주소 (LLM 서버로 쓰지 못하게 막는다)
+     * @param properties   허용 대역·포트 설정, 형식이 틀린 대역이 있으면 기동을 중단한다
+     */
+    @Autowired
+    public LlmHostGuard(@Value("${POSTGRESQL_HOST:localhost}") String databaseHost, LlmGuardProperties properties) {
         this.databaseHost = databaseHost == null ? "" : databaseHost.strip().toLowerCase(Locale.ROOT);
+        this.allowedNetworks = properties.allowedNetworks().stream().map(IpRange::parse).toList();
+        this.allowedPorts = new TreeSet<>(properties.allowedPorts());
+        if (!allowedNetworks.isEmpty() || !allowedPorts.isEmpty()) {
+            log.info("LLM 서버 허용 범위 - 대역: {}, 포트: {}",
+                    allowedNetworks.isEmpty() ? "사설망·Tailscale 전체" : allowedNetworks,
+                    allowedPorts.isEmpty() ? "전체" : allowedPorts);
+        }
+    }
+
+    /**
+     * 대역·포트 제한 없이 만든다. (테스트용)
+     *
+     * @param databaseHost 데이터베이스 서버 주소
+     */
+    public LlmHostGuard(String databaseHost) {
+        this(databaseHost, LlmGuardProperties.unrestricted());
     }
 
     /**
@@ -90,23 +122,47 @@ public class LlmHostGuard {
             case LOOPBACK -> Optional.of(LOCALHOST_MESSAGE);
             case BLOCKED -> Optional.of(BLOCKED_MESSAGE);
             case PUBLIC -> Optional.of(PUBLIC_MESSAGE);
-            case PRIVATE -> host.equals(databaseHost) || databaseAddresses().contains(address)
-                    ? Optional.of(DATABASE_MESSAGE)
-                    : Optional.empty();
+            case PRIVATE -> {
+                if (host.equals(databaseHost) || databaseAddresses().contains(address)) {
+                    yield Optional.of(DATABASE_MESSAGE);
+                }
+                if (!allowedNetworks.isEmpty() && allowedNetworks.stream().noneMatch(range -> range.contains(address))) {
+                    yield Optional.of(NETWORK_MESSAGE_PREFIX + join(allowedNetworks));
+                }
+                yield Optional.empty();
+            }
         };
     }
 
     /**
-     * LLM 서버로 사용할 수 있는 주소인지 검사한다. (호출 직전 재검사용)
+     * 포트를 LLM 서버 포트로 사용할 수 없는 이유를 반환한다.
+     *
+     * @param port 포트
+     * @return 거부 사유, 사용할 수 있으면 {@code Optional.empty()}
+     */
+    public Optional<String> rejectPortReason(Integer port) {
+        if (port == null || allowedPorts.isEmpty() || allowedPorts.contains(port)) {
+            return Optional.empty();
+        }
+        return Optional.of(PORT_MESSAGE_PREFIX + join(allowedPorts));
+    }
+
+    /**
+     * LLM 서버로 사용할 수 있는 주소·포트인지 검사한다. (호출 직전 재검사용 — 설정을 바꾼 뒤 저장돼 있던 주소도 막는다)
      *
      * @param host LLM 서버 주소
-     * @throws LlmException 사용할 수 없는 주소인 경우
+     * @param port LLM 서버 포트
+     * @throws LlmException 사용할 수 없는 주소·포트인 경우
      */
-    public void check(String host) {
-        rejectReason(host).ifPresent(reason -> {
-            log.warn("LLM 서버 주소 거부 - host: {}, 사유: {}", host, reason);
+    public void check(String host, int port) {
+        rejectReason(host).or(() -> rejectPortReason(port)).ifPresent(reason -> {
+            log.warn("LLM 서버 주소 거부 - host: {}, port: {}, 사유: {}", host, port, reason);
             throw new LlmException(reason);
         });
+    }
+
+    private static String join(Collection<?> values) {
+        return values.stream().map(String::valueOf).collect(Collectors.joining(", "));
     }
 
     /**
